@@ -71,7 +71,7 @@ class Bag:
     
 
 
-# %%
+
 class Player:
 
   def __init__(self):
@@ -93,10 +93,6 @@ class Player:
 
 
 
-# %%
-from collections import OrderedDict
-
-# %%
 class Game:
     def __init__(self):
         self.bag = Bag()
@@ -311,7 +307,7 @@ class Game:
         return tilesBoard
 
     def getTile(self,position:Coordinate):
-        gettile=Tile(0,0,Coordinate(0,0));
+        gettile=Tile(0,0,Coordinate(0,0))
         for tile in self.tileOnBoardTempory:
             if (tile.coordinate.x==position.x and tile.coordinate.y==position.y):
                  return tile
@@ -367,25 +363,7 @@ class Game:
                 break 
 
         return test
-           
-    
 
-    
-
-
-# %%
-
-game=Game()
-print(game.player1.getRack())
-game.playPlayer1()
-print(game.getBoard())
-print(game.player1.getRack())
-
-
-# %%
-
-# game.playPlayer1()
-# print(game.getBoard())
 
 
 
