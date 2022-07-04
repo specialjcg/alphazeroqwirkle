@@ -33,12 +33,12 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 
-def convertToBoardPlay(board, actions):
+def convertToBoardPlay(board, actions,playerval):
     nextBoard = np.copy(board)
     i=0
     for rack in actions:
-        nextBoard[newGame.TileColor[rack[0]]-1][rack[2][0]][rack[2][1]]=1
-        nextBoard[5+newGame.TileShape[rack[1]]][rack[2][0]][rack[2][1]]=1
+        nextBoard[newGame.TileColor[rack[0]]-1][rack[2][0]][rack[2][1]]=playerval
+        nextBoard[5+newGame.TileShape[rack[1]]][rack[2][0]][rack[2][1]]=playerval
         i+=1
     return nextBoard
 
@@ -86,7 +86,7 @@ def get_next_state(board, player, action):
                         break
 
     if len(nextState)==0:
-       return convertToBoardPlay(board,playerPlayed), -player,True
+       return convertToBoardPlay(board,playerPlayed,1), -player,True
     # Return the new game, but
     # change the perspective of the game with negative
     return board, -player,False
@@ -838,23 +838,10 @@ def local(num_game):
                       actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                                               dtype=torch.float32)
                       actions /= torch.sum(actions)
-                      colonnes = torch.sort(actions, descending=True)
-                      action2rotation = [0, 1, 2, 3, 4, 5, 6]
-                      colonne = action2rotation[colonnes.indices[0]]
-                      j = 0
-                      while colonnepleine(gridnorme, colonne) and sum(
-                              (x != 0) for x in gridnorme.transpose().flatten()) < 42:
-                          j = (j + 1) % len(colonnes.indices)
-                          colonne = action2rotation[colonnes.indices[j]]
-
-                      colonne = action2rotation[colonne]
-                      lign = 0
-                      while gridnorme[lign][colonne] != 0 and sum(
-                              (x != 0) for x in gridnorme.transpose().flatten()) < 42:
-                          lign = (lign + 1) % 6
+                      boardPlay = torch.sort(actions, descending=True)[0]
 
                       n_steps.append([deepcopy(gridnorme), actions, 0])
-                      gridnorme[lign][colonne] = -1
+                      gridnorme = convertToBoardPlay(gridnorme, boardPlay, -1)
                       first = not first
 
                 else:
