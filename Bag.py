@@ -251,7 +251,8 @@ class Game:
         else:
             self.permutationFromPositionTile(permutations,0,0)
 
-    def setActionprob(self):        
+    def setActionprob(self):
+        self.actionprob=[]
         for x in range(-20,20):
             for y in range(-20,20):
                 for direction in range(0,4):
@@ -259,15 +260,14 @@ class Game:
                         for j in range(0,6):
                             tile1=[]
                             for k in range(0,j+1):
-                                
-                                tile1.append([TileColor[color],0,direction,x,y])          
+                                tile1.append([TileColor[color],0,direction,x,y])
                             self.actionprob.append(tile1)
                     for shape in TileShape:
                         for j in range(0,6):
                             tile1=[]
                             for k in range(0,j+1):
                                 tile1.append([0,TileShape[shape],direction,x,y])
-                            self.actionprob.append(tile1)         
+                            self.actionprob.append(tile1)
 
     def playPlayer1(self):
         

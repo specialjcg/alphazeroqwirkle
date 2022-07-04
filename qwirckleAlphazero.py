@@ -33,19 +33,63 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 
+def convertToBoardPlay(board, actions):
+    nextBoard = np.copy(board)
+    i=0
+    for rack in actions:
+        nextBoard[newGame.TileColor[rack[0]]-1][rack[2][0]][rack[2][1]]=1
+        nextBoard[5+newGame.TileShape[rack[1]]][rack[2][0]][rack[2][1]]=1
+        i+=1
+    return nextBoard
+
+
 
 
 def get_next_state(board, player, action):
     nextBoard = np.copy(board)
     lign = 0
-    while nextBoard[lign][action] != 0 and sum(
-            (x != 0) for x in nextBoard.transpose().flatten()) < 42:
-        lign = (lign + 1) % 6
-    nextBoard[lign][action] = player
+    nextState=list(game.actionprob[action])
+    if nextState[0][2]==0:
+        xpos=nextState[0][4]
+        for i in range(len(nextState)):
+            nextState[i][4]=xpos+i
+    if nextState[0][2]==1:
+        ypos = nextState[0][3]
+        for i in range(len(nextState)):
+            nextState[i][3] = ypos - i
+    if nextState[0][2]==2:
+        xpos=nextState[0][4]
+        for i in range(len(nextState)):
+            nextState[i][4]=xpos-i
+    if nextState[0][2]==3:
+        ypos = nextState[0][3]
+        for i in range(len(nextState)):
+            nextState[i][3] = ypos + i
+    playerPlayed=[]
+    racksPlayer1=list(game.player1.getRack())
 
+    for rack in racksPlayer1:
+        for step in nextState:
+            if step!=0:
+                    if newGame.TileColor[rack[0]]==step[0]:
+                        rack[2]=[step[3],step[4]]
+                        playerPlayed.append(rack)
+                        racksPlayer1.remove(rack)
+                        nextState.remove(step)
+                        break
+            if step!=0:
+                    if newGame.TileShape[rack[1]]==step[1]:
+                        rack[2]=[step[3],step[4]]
+                        playerPlayed.append(rack)
+                        racksPlayer1.remove(rack)
+                        nextState.remove(step)
+                        break
+
+    if len(nextState)==0:
+       return convertToBoardPlay(board,playerPlayed), -player,True
     # Return the new game, but
     # change the perspective of the game with negative
-    return nextBoard, -player
+    return board, -player,False
 
 
 def has_legal_moves(board):
@@ -97,7 +141,7 @@ def get_valid_moves(board):
 
 
     for prob in probsshape:
-        valid_moves[game.actionprob.index([prob])]=1    
+        valid_moves[game.actionprob.index([prob])]=1
          
     
 
@@ -107,11 +151,11 @@ def get_valid_moves(board):
 def get_reward_for_player(board, player):
     # return None if not ended, 1 if player 1 wins, -1 if player 1 lost
 
-    if colWin(board) or ligneWin(board) or diagRigthToLeftWin(board) or diagLeftToRightWin(board):
-        if winner == 1:
-            return 1
-        else:
-            return -1
+    # if colWin(board) or ligneWin(board) or diagRigthToLeftWin(board) or diagLeftToRightWin(board):
+    #     if winner == 1:
+    #         return 1
+    #     else:
+    #         return -1
     # if has_legal_moves(board):
     #     return None
 
@@ -156,13 +200,14 @@ def add_dirichlet_noise(child_priors):
 
 
 class Node:
-    def __init__(self, prior, to_play):
+    def __init__(self, prior, to_play,action):
         self.visit_count = 0
         self.to_play = to_play
         self.prior = prior
         self.value_sum = 0
         self.children = {}
         self.state = None
+        self.action=action
 
     def expanded(self):
         return len(self.children) > 0
@@ -180,15 +225,14 @@ class Node:
         best_action = -1
         best_child = None
 
-        for action, child in self.children.items():
-            score = ucb_score(self, child)
-            if not colonnepleine(self.state, action):
+        for child in self.children.items():
+            score = ucb_score(self, child[1])
+            if not isFinish(self.state):
                 if score> best_score:
                     best_score = score
-                    best_action = action
-                    best_child = child
+                    best_child = child[1]
 
-        return best_action, best_child
+        return best_child
 
     def expand(self, state, to_play, action_probs):
         """
@@ -196,12 +240,19 @@ class Node:
         """
         self.to_play = to_play
         self.state = state
-        val=torch.topk(action_probs, 5).values
-        for i in range(len(action_probs)):
-          if action_probs[i] in val and self.actionCouldWin(self.state, action_probs[i]):
-            self.children[i] = Node(prior=action_probs[i].item(), to_play=self.to_play * -1)
-          else:
-            self.children[i] = Node(prior=0, to_play=self.to_play * -1)
+        indiceStateChildren=torch.sort(action_probs, descending=True).indices
+
+        # val=torch.topk(action_probs, 5).values
+        # j=0
+        # for i in range(len(action_probs)):
+        #   if action_probs[i] in val and self.actionCouldWin(self.state, action_probs[i]):
+        #     self.children[j] = Node(prior=action_probs[i].item(), to_play=self.to_play * -1,action=indiceStateChildren[i].item())
+        #     j+=1
+          # else:
+          #   self.children[i] = Node(prior=0, to_play=self.to_play * -1)
+        for a, prob in enumerate(action_probs):
+            if prob != 0:
+                self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,action=indiceStateChildren[a].item())
 
 
 
@@ -216,6 +267,16 @@ class Node:
         return not isFinish(state)
 
 
+def convertToBoard(state, racks):
+    nextBoard=np.copy(state)
+    i=0
+    for rack in racks:
+        nextBoard[12+newGame.TileColor[rack[0]]][0,i]=1
+        nextBoard[18+newGame.TileShape[rack[1]]][0,i]=1
+        i+=1
+    return nextBoard
+
+
 class MCTS:
 
     def backpropagate(self, search_path, value, to_play):
@@ -227,66 +288,74 @@ class MCTS:
             node.value_sum += value if node.to_play == to_play else -value
             node.visit_count += 1
 
-    def run(self, state, to_play):
-      with torch.no_grad():      
+    def run(self, state, to_play,action):
+      with torch.no_grad():
         #   gridnormeOne = np.zeros(shape=(26,54,54))
         #   gridnormenegOne = np.zeros(shape=(6, 7))
         #   gridnormeZero = np.zeros(shape=(6, 7))
-          root = Node(0, to_play)
+          root = Node(0, to_play,action)
         #   convert_zero(state, gridnormeZero)
         #   convert_one(state, gridnormeOne)
         #   convert_neg_one(state, gridnormenegOne)
-          gridAll = state
+          if to_play==1:
+              gridAll = convertToBoard(state,game.player1.getRack())
+              game.player1.addTileToRack(game.bag)
+          else:
+              gridAll = convertToBoard(state, game.player2.getRack())
+              game.player2.addTileToRack(game.bag)
           #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
           statesignal = torch.tensor([gridAll], dtype=torch.float32)
           action_probs, value = cnn(statesignal)
-          
-          
+
+
 
           valid_moves = get_valid_moves(state)
 
           #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
           action_probs = action_probs * torch.tensor(valid_moves, dtype=torch.float32)  # mask invalid moves
-          action_probs /= torch.sum(action_probs)
           action_probs = add_dirichlet_noise(action_probs)
+          action_probs /= torch.sum(action_probs)
+
           root.expand(state, to_play, action_probs)
 
           #for i in range(777):
-          for i in range(5):    
-              
+          for i in range(5):
+
               node = root
               search_path = [node]
               print('\rsimulation:{:.2f}'.format(i),end='')
 
               # SELECT
               while node.expanded():
-                  action, node = node.select_child()
+                  node = node.select_child()
                   search_path.append(node)
 
               parent = search_path[-2]
               state = parent.state
               # Now we're at a leaf node and we would like to expand
               # Players always play from their own perspective
-              next_state, _ = get_next_state(state, player=1, action=action)
+              next_state, _,isLegalmove = get_next_state(state, player=1, action=node.action)
               # Get the board from the perspective of the other player
               next_state = get_canonical_board(next_state, player=-1)
 
               # The value of the new state from the perspective of the other player
               value = get_reward_for_player(next_state, player=1)
-              if value==0 and has_legal_moves(next_state):
+              if value==0 and isLegalmove:
                   # If the game has not ended:
                   # EXPAND
-                  
+
                   gridAll = next_state
                   #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
                   statesignal = torch.tensor([gridAll], dtype=torch.float32)
-                  statesignal = statesignal.reshape(3, 6, 7)
-                  
                   action_probs, value = cnn(statesignal)
-                  valid_moves = get_valid_moves(next_state)
-                  #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
-                  action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32)  # mask invalid moves
+
+                  valid_moves = get_valid_moves(state)
+
+                  # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
+                  action_probs = action_probs * torch.tensor(valid_moves, dtype=torch.float32)
+                  action_probs = add_dirichlet_noise(action_probs)# mask invalid moves
                   action_probs /= torch.sum(action_probs)
+
 
                   node.expand(next_state, parent.to_play * -1, action_probs)
 
@@ -304,12 +373,12 @@ class MCTS_iter:
             node.value_sum += value if node.to_play == to_play else -value
             node.visit_count += 1
 
-    def run(self, state, to_play):
-      with torch.no_grad():      
+    def run(self, state, to_play,action):
+      with torch.no_grad():
           gridnormeOne = np.zeros(shape=(26,54,54))
-          
-          root = Node(0, to_play)
-          
+
+          root = Node(0, to_play,action)
+
           #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
           statesignal = torch.tensor([gridAll], dtype=torch.float32)
 
@@ -317,28 +386,28 @@ class MCTS_iter:
 
           valid_moves = get_valid_moves(state)
 
-          #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda() 
+          #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
           action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32) # mask invalid moves
           action_probs /= torch.sum(action_probs)
           action_probs = add_dirichlet_noise(action_probs)
           root.expand(state, to_play, action_probs)
 
           for i in range(777):
-              
+
               node = root
               search_path = [node]
               print('\rsimulation:{:.2f}'.format(i),end='')
 
               # SELECT
               while node.expanded():
-                  action, node = node.select_child()
+                  node = node.select_child()
                   search_path.append(node)
 
               parent = search_path[-2]
               state = parent.state
               # Now we're at a leaf node and we would like to expand
               # Players always play from their own perspective
-              next_state, _ = get_next_state(state, player=1, action=action)
+              next_state, _ = get_next_state(state, player=1, action=node.action)
               # Get the board from the perspective of the other player
               next_state = get_canonical_board(next_state, player=-1)
 
@@ -347,23 +416,23 @@ class MCTS_iter:
               if value==0 and has_legal_moves(next_state):
                   # If the game has not ended:
                   # EXPAND
-                  
+
                   gridAll = next_state
                   #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
                   statesignal = torch.tensor([gridAll], dtype=torch.float32)
 
                   statesignal = statesignal.reshape(3, 6, 7)
-                  
+
                   action_probs, value = cnn_iter1(statesignal)
                   valid_moves = get_valid_moves(next_state)
-                  #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda() 
+                  #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
                   action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32) # mask invalid moves
                   action_probs /= torch.sum(action_probs)
 
                   node.expand(next_state, parent.to_play * -1, action_probs)
 
               self.backpropagate(search_path, value, parent.to_play * -1)
-          return root   
+          return root
 
 
 
@@ -659,16 +728,16 @@ runningloss = []
 acurracy=[]
 def localtrain():
     global maxWin,moyenneWinBlue,BATCH_SIZE,pi_losses,v_losses,acurracy,runningloss
-    
-   
-    
-    
+
+
+
+
 
     for epoch in range(0, 20):
 
 
       batch_idx = 0
-      
+
       pi_losses = []
       v_losses = []
 
@@ -683,7 +752,7 @@ def localtrain():
 
         boardsAll=[]
         for board in boards:
-          
+
             gridAll = [gridnormeZero, gridnormeOne, gridnormenegOne]
             last_signal = torch.FloatTensor(gridAll).cuda()
             last_signal = last_signal.reshape(3, 6, 7)
@@ -701,9 +770,9 @@ def localtrain():
 
         target_pis =torch.FloatTensor([t.cpu().numpy() for t in pisAll]).cuda()
         target_vs = torch.FloatTensor(vsAll).cuda().reshape(BATCH_SIZE,1)
-          
-          
-        
+
+
+
         out_pi, out_v = cnn(statesignal)
         total_error=alphaloss(out_v,target_vs,out_pi,target_pis)
         optimizer.zero_grad()
@@ -713,11 +782,11 @@ def localtrain():
 
         batch_idx += 1
     print('Policy Loss:{:.2f}'.format(np.mean(pi_losses)))
-    
-    
-    runningloss.append(np.mean(pi_losses))        
-    
-    clear_output(wait=True)     
+
+
+    runningloss.append(np.mean(pi_losses))
+
+    clear_output(wait=True)
     pal = sns.dark_palette('purple',2)
     ax = sns.lineplot(data=runningloss,palette=pal, color='red',  alpha=.5, linewidth=2)
     ax.legend(['loss'])
@@ -729,41 +798,41 @@ def localtrain():
     # Ask Matplotlib to show it
     plt.show()
     savebraintrain()
-     
+
 
 
 
 
 def local(num_game):
-    
+
 
     global gridnorme, game, epoch, memory, history, n_steps, maxWin
-    
+
 
     interval = []
 
-    
+
     for h in range(0, num_game):
         start_time = time.time()
         n_steps = []
         gridnorme = np.zeros(shape=(26,54, 54))
         game=newGame.Game()
-        
-        
-        first = random.choice([True, False])
-        
-        for i in range(0,54):
-            
 
-           
+
+        first = random.choice([True, False])
+
+        for i in range(0,54):
+
+
+
 
             if first:
-                
+
 
                 if not isFinish(gridnorme):
-                    
-                      game.permutePlayer1()  
-                      actions = mcts.run(gridnorme, -1)
+
+                      game.permutePlayer1()
+                      actions = mcts.run(gridnorme, -1,0)
                       #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                       #                        dtype=torch.float32).cuda()
                       actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
@@ -793,14 +862,14 @@ def local(num_game):
             else:
                 if not isFinish(gridnorme):
 
-                      
-                      
-                      game.permutePlayer2()  
-                      actions = mcts.run(gridnorme, 1)
+
+
+                      game.permutePlayer2()
+                      actions = mcts.run(gridnorme, 1,0)
                       #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                       #                        dtype=torch.float32).cuda()
                       actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                                              dtype=torch.float32)                     
+                                              dtype=torch.float32)
                       actions /= torch.sum(actions)
                       colonnes = torch.sort(actions, descending=True)
                       action2rotation = [0, 1, 2, 3, 4, 5, 6]
@@ -822,7 +891,7 @@ def local(num_game):
                       first = not first
                 else:
                     break
-        
+
         n_steps.append([deepcopy(gridnorme), [0, 0, 0, 0, 0, 0, 0], 0])
         if winner == 1:
 
@@ -846,18 +915,18 @@ def local(num_game):
 
         n_steps = []
 
-        
-            
+
+
         interval.append(time.time() - start_time)
         if h > 5:
             localtrain()
         print('Total time in seconde:{:.2f}  '.format(np.mean(interval)),' ',h)
         if h%10==0:
           savebrain1()
-        
 
-    
-    
+
+
+
 
 
 
@@ -867,7 +936,7 @@ import csv
 def savebrain1():
     global savefile
     global cnn, optimizer, cnnred
-    
+
 
     print("=> saving checkpoint... ")
     checkpoint = {'model': cnn,
@@ -876,36 +945,36 @@ def savebrain1():
     torch.save(checkpoint, 'bestrandom.pth')
 
     print("=> saving checkpoint... ")
-    
+
 def savebraintrain():
     global savefile
     global runningloss
-    
+
 
     with open('loss_2000.csv', mode='w') as loss_file:
         blue_writer = csv.writer(loss_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         blue_writer.writerow(runningloss)
 
     print("=> saving moyenne... ",runningloss[len(runningloss)-1])
-        
+
 def loadbrain2():
     global cnn, optimizer, rewardcnn, cnnred, rewardcnnred
     if os.path.isfile('best_iter200.pth'):
         print("=> loading checkpoint... ")
-       
+
         checkpoint = torch.load('best_iter200.pth', map_location=cuda0)
         cnn_iter1.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        
-       
+
+
 
         print("done !")
     else:
         print("no checkpoint found...")
-        
+
 def loadcsv():
     global cnn, optimizer, rewardcnn, cnnred, rewardcnnred,runningloss
-    
+
     if os.path.isfile('loss_2000.csv'):
 
         with open('loss_2000.csv', newline='') as f:
@@ -913,7 +982,7 @@ def loadcsv():
             runningloss = list(reader)[0]
 
         print("=> loading checkpoint... ")
-       
+
 
     else:
         print("no checkpoint found...")
@@ -926,9 +995,9 @@ def loadbrain1():
         cnn.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
 
-      
-        
-       
+
+
+
 
         print("done !")
     else:
