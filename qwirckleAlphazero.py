@@ -108,7 +108,7 @@ def get_valid_moves(board):
     probsshape=[]
 
     for index,i in enumerate(game.listValidMoves):
-        
+
         if len(i)<2:
             for tile in i:
                 probscolor.append([newGame.TileColor[tile.color],0,0,tile.coordinate.x,tile.coordinate.y])
@@ -119,22 +119,22 @@ def get_valid_moves(board):
                 for tile in i:
                     probscolor.append([newGame.TileColor[tile.color],0,0,i[0].coordinate.x,i[0].coordinate.y])
                     probsshape.append([0,newGame.TileShape[tile.shape],0,i[0].coordinate.x,i[0].coordinate.y])
-                break        
+                break
             if (i[0].coordinate.x-i[1].coordinate.x)<0:
                 for tile in i:
                     probscolor.append([newGame.TileColor[tile.color],0,1,i[0].coordinate.x,i[0].coordinate.y])
                     probsshape.append([0,newGame.TileShape[tile.shape],1,i[0].coordinate.x,i[0].coordinate.y])
-                break    
+                break
             if (i[0].coordinate.y-i[1].coordinate.y)>0:
                 for tile in i:
                     probscolor.append([newGame.TileColor[tile.color],0,2,i[0].coordinate.x,i[0].coordinate.y])
                     probsshape.append([0,newGame.TileShape[tile.shape],2,i[0].coordinate.x,i[0].coordinate.y])
-                break    
+                break
             if (i[0].coordinate.y-i[1].coordinate.y)<0:
                 for tile in i:
                     probscolor.append([newGame.TileColor[tile.color],0,3,i[0].coordinate.x,i[0].coordinate.y])
                     probsshape.append([0,newGame.TileShape[tile.shape],3,i[0].coordinate.x,i[0].coordinate.y])
-                break                            
+                break
 
     for prob in probscolor:
         valid_moves[game.actionprob.index([prob])]=1
@@ -142,8 +142,8 @@ def get_valid_moves(board):
 
     for prob in probsshape:
         valid_moves[game.actionprob.index([prob])]=1
-         
-    
+
+
 
     return valid_moves
 
@@ -184,7 +184,7 @@ def ucb_score(parent, child):
 
 
 def add_dirichlet_noise(child_priors):
-        dirichlet_input = [0.1 for x in range(len(child_priors))]
+        dirichlet_input = [0.1 for x in range(len(child_priors[0]))]
         dirichlet_list = np.random.dirichlet(dirichlet_input)
         noisy_psa_vector = []
         for idx, psa in enumerate(child_priors):
@@ -225,14 +225,15 @@ class Node:
         best_action = -1
         best_child = None
 
-        for child in self.children.items():
+        for action,child in enumerate(self.children.items()):
             score = ucb_score(self, child[1])
             if not isFinish(self.state):
                 if score> best_score:
                     best_score = score
                     best_child = child[1]
+                    best_action=action
 
-        return best_child
+        return best_action,best_child
 
     def expand(self, state, to_play, action_probs):
         """
@@ -251,7 +252,7 @@ class Node:
           # else:
           #   self.children[i] = Node(prior=0, to_play=self.to_play * -1)
         for a, prob in enumerate(action_probs):
-            if prob != 0:
+            if prob >=0.2:
                 self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,action=indiceStateChildren[a].item())
 
 
@@ -304,37 +305,41 @@ class MCTS:
               gridAll = convertToBoard(state, game.player2.getRack())
               game.player2.addTileToRack(game.bag)
           #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-          statesignal = torch.tensor([gridAll], dtype=torch.float32)
+          statesignal = torch.tensor(gridAll, dtype=torch.float32)
           action_probs, value = cnn(statesignal)
+
 
 
 
           valid_moves = get_valid_moves(state)
 
           #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
-          action_probs = action_probs * torch.tensor(valid_moves, dtype=torch.float32)  # mask invalid moves
-          action_probs = add_dirichlet_noise(action_probs)
+          action_probs = action_probs * valid_moves # mask invalid moves
+          #action_probs = add_dirichlet_noise(action_probs)
+
+
+
           action_probs /= torch.sum(action_probs)
 
-          root.expand(state, to_play, action_probs)
+          root.expand(state, to_play, torch.squeeze(action_probs,0))
 
           #for i in range(777):
-          for i in range(5):
+          for i in range(10):
 
               node = root
               search_path = [node]
-              print('\rsimulation:{:.2f}'.format(i),end='')
+              print('\rsimulation:{0} {1}'.format(i,len(game.bag.bag)),end='')
 
               # SELECT
               while node.expanded():
-                  node = node.select_child()
+                  action,node = node.select_child()
                   search_path.append(node)
 
               parent = search_path[-2]
               state = parent.state
               # Now we're at a leaf node and we would like to expand
               # Players always play from their own perspective
-              next_state, _,isLegalmove = get_next_state(state, player=1, action=node.action)
+              next_state, _,isLegalmove = get_next_state(state, player=1, action=action)
               # Get the board from the perspective of the other player
               next_state = get_canonical_board(next_state, player=-1)
 
@@ -346,18 +351,19 @@ class MCTS:
 
                   gridAll = next_state
                   #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-                  statesignal = torch.tensor([gridAll], dtype=torch.float32)
+                  statesignal = torch.tensor(gridAll, dtype=torch.float32)
                   action_probs, value = cnn(statesignal)
 
                   valid_moves = get_valid_moves(state)
 
                   # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
-                  action_probs = action_probs * torch.tensor(valid_moves, dtype=torch.float32)
-                  action_probs = add_dirichlet_noise(action_probs)# mask invalid moves
+                  action_probs = action_probs *valid_moves# mask invalid moves
+                  #action_probs = add_dirichlet_noise(action_probs)
+
                   action_probs /= torch.sum(action_probs)
 
 
-                  node.expand(next_state, parent.to_play * -1, action_probs)
+                  node.expand(next_state, parent.to_play * -1,torch.squeeze(action_probs,0))
 
               self.backpropagate(search_path, value, parent.to_play * -1)
           return root
@@ -375,12 +381,18 @@ class MCTS_iter:
 
     def run(self, state, to_play,action):
       with torch.no_grad():
-          gridnormeOne = np.zeros(shape=(26,54,54))
-
-          root = Node(0, to_play,action)
-
+          root = Node(0, to_play, action)
+          #   convert_zero(state, gridnormeZero)
+          #   convert_one(state, gridnormeOne)
+          #   convert_neg_one(state, gridnormenegOne)
+          if to_play == 1:
+              gridAll = convertToBoard(state, game.player1.getRack())
+              game.player1.addTileToRack(game.bag)
+          else:
+              gridAll = convertToBoard(state, game.player2.getRack())
+              game.player2.addTileToRack(game.bag)
           #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-          statesignal = torch.tensor([gridAll], dtype=torch.float32)
+          statesignal = torch.tensor(gridAll, dtype=torch.float32)
 
           action_probs, value = cnn_iter1(statesignal)
 
@@ -800,7 +812,20 @@ def localtrain():
     savebraintrain()
 
 
-
+def convertToRealTiles(boardPlay):
+    board=[]
+    color=list(newGame.TileColor)
+    shape=list(newGame.TileShape)
+    for index, tile in enumerate(boardPlay):
+        if (tile[2]==0):
+            board.append([color[tile[0] - 1],shape[tile[1] - 1],[tile[3]+index,tile[4]]])
+        if (tile[2]==1):
+            board.append([color[tile[0] - 1],shape[tile[1] - 1],[tile[3],tile[4]+index]])
+        if (tile[2]==2):
+            board.append([color[tile[0] - 1],shape[tile[1] - 1],[tile[3]-index,tile[4]]])
+        if (tile[2]==3):
+            board.append([color[tile[0] - 1],shape[tile[1] - 1],[tile[3],tile[4]-index]])
+    return board
 
 
 def local(num_game):
@@ -835,13 +860,18 @@ def local(num_game):
                       actions = mcts.run(gridnorme, -1,0)
                       #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                       #                        dtype=torch.float32).cuda()
-                      actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
+                      childvisitcount = torch.tensor([[actions.children[visit].visit_count] for visit in actions.children],
                                               dtype=torch.float32)
-                      actions /= torch.sum(actions)
-                      boardPlay = torch.sort(actions, descending=True)[0]
+                      childvisitcount /= torch.sum(childvisitcount)
+                      boardPlay = game.actionprob[list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]]
+                      boardPlay=convertToRealTiles(boardPlay)
 
                       n_steps.append([deepcopy(gridnorme), actions, 0])
                       gridnorme = convertToBoardPlay(gridnorme, boardPlay, -1)
+                      for tile in boardPlay:
+                          game.player1.delRack(tile)
+                      game.player1.addTileToRack(game.bag)
+
                       first = not first
 
                 else:
@@ -855,31 +885,26 @@ def local(num_game):
                       actions = mcts.run(gridnorme, 1,0)
                       #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                       #                        dtype=torch.float32).cuda()
-                      actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                                              dtype=torch.float32)
-                      actions /= torch.sum(actions)
-                      colonnes = torch.sort(actions, descending=True)
-                      action2rotation = [0, 1, 2, 3, 4, 5, 6]
-                      colonne = action2rotation[colonnes.indices[0]]
-                      j = 0
-                      while colonnepleine(gridnorme, colonne) and sum(
-                              (x != 0) for x in gridnorme.transpose().flatten()) < 42:
-                          j = (j + 1) % len(colonnes.indices)
-                          colonne = action2rotation[colonnes.indices[j]]
-
-                      colonne = action2rotation[colonne]
-                      lign = 0
-                      while gridnorme[lign][colonne] != 0 and sum(
-                              (x != 0) for x in gridnorme.transpose().flatten()) < 42:
-                          lign = (lign + 1) % 6
+                      childvisitcount = torch.tensor(
+                          [[actions.children[visit].visit_count] for visit in actions.children],
+                          dtype=torch.float32)
+                      childvisitcount /= torch.sum(childvisitcount)
+                      boardPlay = game.actionprob[
+                          list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]]
+                      boardPlay = convertToRealTiles(boardPlay)
 
                       n_steps.append([deepcopy(gridnorme), actions, 0])
-                      gridnorme[lign][colonne] = 1
+                      gridnorme = convertToBoardPlay(gridnorme, boardPlay, 1)
+                      for tile in boardPlay:
+                          game.player1.delRack(tile)
+                      game.player2.addTileToRack(game.bag)
                       first = not first
                 else:
                     break
 
-        n_steps.append([deepcopy(gridnorme), [0, 0, 0, 0, 0, 0, 0], 0])
+
+
+        n_steps.append([deepcopy(gridnorme), list(np.zeros(len(game.actionprob))), 0])
         if winner == 1:
 
             reward=-1
