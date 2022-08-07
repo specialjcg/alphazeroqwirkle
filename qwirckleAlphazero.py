@@ -3,9 +3,9 @@
 
 import os
 from copy import deepcopy
-
 import torch.nn as nn
 import torch.nn.functional as F
+import ujson
 from torch.autograd import Variable
 import pandas as pd
 import numpy as np
@@ -13,9 +13,10 @@ from collections import namedtuple, deque
 import torch
 
 import Bag as newGame
-
-
-
+from Coordinate import Coordinate
+from Tile import Tile
+from TileColor import TileColor
+from TileShape import TileShape
 
 cuda0 = torch.device('cuda:0')
 
@@ -33,63 +34,89 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 
-def convertToBoardPlay(board, actions,playerval):
+def boardPlayToGridNorm(board, actions, playerval):
     nextBoard = np.copy(board)
     i=0
     for rack in actions:
-        nextBoard[newGame.TileColor[rack[0]]-1][rack[2][0]][rack[2][1]]=playerval
-        nextBoard[5+newGame.TileShape[rack[1]]][rack[2][0]][rack[2][1]]=playerval
+        nextBoard[TileColor[rack[0]]-1][rack[2][0]+22][rack[2][1]+22]=playerval
+        nextBoard[5+TileShape[rack[1]]][rack[2][0]+22][rack[2][1]+22]=playerval
         i+=1
     return nextBoard
 
+def gridNormtoRack(gridnorme):
+    nextBoard = np.copy(gridnorme)
+    board = []
+    for x in range(-22, 22):
+        for y in range(-22, 22):
+            for j in range(13, 19):
+                if nextBoard[j][x + 22, y + 22] == 1.0 or nextBoard[j][x + 22, y + 22] == -1.0:
+                    for k in range(19, 26):
+                        if nextBoard[k][x + 22, y + 22] == 1.0 or nextBoard[k][x + 22, y + 22] == -1.0:
+                            board.append([list(TileColor.keys())[j-13], list(TileShape.keys())[k - 19], [0, 0]])
+    return board
+
+
+def gridNormToBoardPlay(gridnorme):
+    nextBoard = np.copy(gridnorme)
+    board=[]
+    for x in range(-22,22):
+        for y in range(-22,22):
+            for j in range(0,6):
+                if nextBoard[j][x+22,y+22]==1.0 or nextBoard[j][x+22,y+22]==-1.0:
+                    for k in range(6, 13):
+                        if nextBoard[k][x+22, y+22] == 1.0 or nextBoard[k][x+22, y+22] == -1.0:
+                            board.append([list(TileColor.keys())[j],list(TileShape.keys())[k-6],[x,y]])
+    return board
 
 
 
-def get_next_state(board, player, action):
-    nextBoard = np.copy(board)
-    lign = 0
+def get_next_state(board, player, action,game):
     nextState=list(game.actionprob[action])
-    if nextState[0][2]==0:
-        xpos=nextState[0][4]
-        for i in range(len(nextState)):
-            nextState[i][4]=xpos+i
-    if nextState[0][2]==1:
-        ypos = nextState[0][3]
-        for i in range(len(nextState)):
-            nextState[i][3] = ypos - i
-    if nextState[0][2]==2:
-        xpos=nextState[0][4]
-        for i in range(len(nextState)):
-            nextState[i][4]=xpos-i
-    if nextState[0][2]==3:
-        ypos = nextState[0][3]
-        for i in range(len(nextState)):
-            nextState[i][3] = ypos + i
+    # if nextState[0][2]==3:
+    #     ypos=nextState[0][4]
+    #     for i in range(len(nextState)):
+    #         nextState[i][4]=ypos+i
+    # if nextState[0][2]==2:
+    #     xpos = nextState[0][3]
+    #     for i in range(len(nextState)):
+    #         nextState[i][3] = xpos - i
+    # if nextState[0][2]==1:
+    #     ypos=nextState[0][4]
+    #     for i in range(len(nextState)):
+    #         nextState[i][4]=ypos-i
+    # if nextState[0][2]==0:
+    #     xpos = nextState[0][3]
+    #     for i in range(len(nextState)):
+    #         nextState[i][3] = xpos + i
     playerPlayed=[]
-    racksPlayer1=list(game.player1.getRack())
+    if player == 1:
+        racksPlayer=list(game.player1.getRack())
+    else:
+        racksPlayer=list(game.player2.getRack())
 
-    for rack in racksPlayer1:
+    for rack in racksPlayer:
         for step in nextState:
             if step!=0:
-                    if newGame.TileColor[rack[0]]==step[0]:
+                    if TileColor[rack[0]]==step[0]:
                         rack[2]=[step[3],step[4]]
                         playerPlayed.append(rack)
-                        racksPlayer1.remove(rack)
+                        racksPlayer.remove(rack)
                         nextState.remove(step)
                         break
             if step!=0:
-                    if newGame.TileShape[rack[1]]==step[1]:
+                    if TileShape[rack[1]]==step[1]:
                         rack[2]=[step[3],step[4]]
                         playerPlayed.append(rack)
-                        racksPlayer1.remove(rack)
+                        racksPlayer.remove(rack)
                         nextState.remove(step)
                         break
 
     if len(nextState)==0:
-       return convertToBoardPlay(board,playerPlayed,1), -player,True
+
+       return boardPlayToGridNorm(board, playerPlayed, 1), -player, playerPlayed
     # Return the new game, but
     # change the perspective of the game with negative
-    return board, -player,False
+    return board, -player,[]
 
 
 def has_legal_moves(board):
@@ -100,52 +127,44 @@ def has_legal_moves(board):
     return False
 
 
-def get_valid_moves(board):
+
+
+def findindexinActionprob(i,game):
+    indexList=[]
+    for index, element in enumerate(game.actionprob):
+        if len(i)==len(element):
+            test=True
+            for action in element:
+                if (action[0]==TileColor[i[0].color] or action[1]==TileShape[i[0].shape]) :
+                        if action[3]==i[0].coordinate.x and action[4]==i[0].coordinate.y:
+                            test=test and True
+                        else:
+                            test=False
+                else:
+                    test = False
+            if test :
+                indexList.append(index)
+    return indexList
+
+
+
+def get_valid_moves(game):
     # All moves are invalid by default
-    game.setActionprob()
+
     valid_moves=np.zeros(len(game.actionprob))
-    probscolor=[]
-    probsshape=[]
+    listprob=[]
 
-    for index,i in enumerate(game.listValidMoves):
+    for i in game.listValidMoves:
+        listprob.append(findindexinActionprob(i,game))
+    for prob in listprob:
+        for index in prob:
+            valid_moves[index] = 1
 
-        if len(i)<2:
-            for tile in i:
-                probscolor.append([newGame.TileColor[tile.color],0,0,tile.coordinate.x,tile.coordinate.y])
-                probsshape.append([0,newGame.TileShape[tile.shape],0,tile.coordinate.x,tile.coordinate.y])
-
-        else:
-            if (i[0].coordinate.x-i[1].coordinate.x)>0:
-                for tile in i:
-                    probscolor.append([newGame.TileColor[tile.color],0,0,i[0].coordinate.x,i[0].coordinate.y])
-                    probsshape.append([0,newGame.TileShape[tile.shape],0,i[0].coordinate.x,i[0].coordinate.y])
-                break
-            if (i[0].coordinate.x-i[1].coordinate.x)<0:
-                for tile in i:
-                    probscolor.append([newGame.TileColor[tile.color],0,1,i[0].coordinate.x,i[0].coordinate.y])
-                    probsshape.append([0,newGame.TileShape[tile.shape],1,i[0].coordinate.x,i[0].coordinate.y])
-                break
-            if (i[0].coordinate.y-i[1].coordinate.y)>0:
-                for tile in i:
-                    probscolor.append([newGame.TileColor[tile.color],0,2,i[0].coordinate.x,i[0].coordinate.y])
-                    probsshape.append([0,newGame.TileShape[tile.shape],2,i[0].coordinate.x,i[0].coordinate.y])
-                break
-            if (i[0].coordinate.y-i[1].coordinate.y)<0:
-                for tile in i:
-                    probscolor.append([newGame.TileColor[tile.color],0,3,i[0].coordinate.x,i[0].coordinate.y])
-                    probsshape.append([0,newGame.TileShape[tile.shape],3,i[0].coordinate.x,i[0].coordinate.y])
-                break
-
-    for prob in probscolor:
-        valid_moves[game.actionprob.index([prob])]=1
-
-
-    for prob in probsshape:
-        valid_moves[game.actionprob.index([prob])]=1
 
 
 
     return valid_moves
+
 
 
 def get_reward_for_player(board, player):
@@ -231,7 +250,7 @@ class Node:
                 if score> best_score:
                     best_score = score
                     best_child = child[1]
-                    best_action=action
+                    best_action=child[0]
 
         return best_action,best_child
 
@@ -243,17 +262,9 @@ class Node:
         self.state = state
         indiceStateChildren=torch.sort(action_probs, descending=True).indices
 
-        # val=torch.topk(action_probs, 5).values
-        # j=0
-        # for i in range(len(action_probs)):
-        #   if action_probs[i] in val and self.actionCouldWin(self.state, action_probs[i]):
-        #     self.children[j] = Node(prior=action_probs[i].item(), to_play=self.to_play * -1,action=indiceStateChildren[i].item())
-        #     j+=1
-          # else:
-          #   self.children[i] = Node(prior=0, to_play=self.to_play * -1)
         for a, prob in enumerate(action_probs):
-            if prob >=0.2:
-                self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,action=indiceStateChildren[a].item())
+            if prob >=0.1:
+               self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,action=indiceStateChildren[a].item())
 
 
 
@@ -272,8 +283,8 @@ def convertToBoard(state, racks):
     nextBoard=np.copy(state)
     i=0
     for rack in racks:
-        nextBoard[12+newGame.TileColor[rack[0]]][0,i]=1
-        nextBoard[18+newGame.TileShape[rack[1]]][0,i]=1
+        nextBoard[12+TileColor[rack[0]]][0,i]=1
+        nextBoard[18+TileShape[rack[1]]][0,i]=1
         i+=1
     return nextBoard
 
@@ -289,7 +300,7 @@ class MCTS:
             node.value_sum += value if node.to_play == to_play else -value
             node.visit_count += 1
 
-    def run(self, state, to_play,action):
+    def run(self, state, to_play,action,game):
       with torch.no_grad():
         #   gridnormeOne = np.zeros(shape=(26,54,54))
         #   gridnormenegOne = np.zeros(shape=(6, 7))
@@ -298,20 +309,16 @@ class MCTS:
         #   convert_zero(state, gridnormeZero)
         #   convert_one(state, gridnormeOne)
         #   convert_neg_one(state, gridnormenegOne)
-          if to_play==1:
-              gridAll = convertToBoard(state,game.player1.getRack())
-              game.player1.addTileToRack(game.bag)
-          else:
-              gridAll = convertToBoard(state, game.player2.getRack())
-              game.player2.addTileToRack(game.bag)
+
           #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-          statesignal = torch.tensor(gridAll, dtype=torch.float32)
+          statesignal = torch.tensor(state, dtype=torch.float32)
           action_probs, value = cnn(statesignal)
+          gamesimul=game.__copy__()
 
 
 
 
-          valid_moves = get_valid_moves(state)
+          valid_moves = get_valid_moves(gamesimul)
 
           #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
           action_probs = action_probs * valid_moves # mask invalid moves
@@ -322,51 +329,76 @@ class MCTS:
           action_probs /= torch.sum(action_probs)
 
           root.expand(state, to_play, torch.squeeze(action_probs,0))
+          if len(root.children)>0:
+              print('\rsimulation:{0}'.format( len(gamesimul.bag.bag)))
+      #for i in range(777):
+              for i in range(10):
 
-          #for i in range(777):
-          for i in range(10):
-
-              node = root
-              search_path = [node]
-              print('\rsimulation:{0} {1}'.format(i,len(game.bag.bag)),end='')
-
-              # SELECT
-              while node.expanded():
-                  action,node = node.select_child()
-                  search_path.append(node)
-
-              parent = search_path[-2]
-              state = parent.state
-              # Now we're at a leaf node and we would like to expand
-              # Players always play from their own perspective
-              next_state, _,isLegalmove = get_next_state(state, player=1, action=action)
-              # Get the board from the perspective of the other player
-              next_state = get_canonical_board(next_state, player=-1)
-
-              # The value of the new state from the perspective of the other player
-              value = get_reward_for_player(next_state, player=1)
-              if value==0 and isLegalmove:
-                  # If the game has not ended:
-                  # EXPAND
-
-                  gridAll = next_state
-                  #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-                  statesignal = torch.tensor(gridAll, dtype=torch.float32)
-                  action_probs, value = cnn(statesignal)
-
-                  valid_moves = get_valid_moves(state)
-
-                  # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
-                  action_probs = action_probs *valid_moves# mask invalid moves
-                  #action_probs = add_dirichlet_noise(action_probs)
-
-                  action_probs /= torch.sum(action_probs)
+                  node = root
+                  search_path = [node]
 
 
-                  node.expand(next_state, parent.to_play * -1,torch.squeeze(action_probs,0))
+                  # SELECT
+                  while node.expanded():
+                      action,node = node.select_child()
+                      search_path.append(node)
 
-              self.backpropagate(search_path, value, parent.to_play * -1)
-          return root
+                  parent = search_path[-2]
+                  state = parent.state
+                  # Now we're at a leaf node and we would like to expand
+                  # Players always play from their own perspective
+                  next_state, _,isLegalmove = get_next_state(state, player=1, action=action,game=gamesimul)
+                  # Get the board from the perspective of the other player
+                  next_state = get_canonical_board(next_state, player=-1)
+
+                  # The value of the new state from the perspective of the other player
+                  value = get_reward_for_player(next_state, player=1)
+                  if value==0 and len(isLegalmove)!=0 :
+                      # If the game has not ended:
+                      # EXPAND
+                      if (parent.to_play == 1):
+                          if len(gamesimul.listValidMoves) > 0:
+                              for tile in isLegalmove:
+                                  tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
+                                  gamesimul.tileOnBoard.append(tile)
+                                  gamesimul.player1.delRack(tile)
+                              gamesimul.player1.addTileToRack(gamesimul.bag)
+                              gamesimul.listValidMovePlayer1()
+                              next_state = convertToBoard(next_state, gamesimul.player1.getRack())
+                          else:
+                              game.player1.newRack(gamesimul.bag)
+                      else:
+                          if len(gamesimul.listValidMoves) > 0:
+                              for tile in isLegalmove:
+                                  tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
+                                  gamesimul.tileOnBoard.append(tile)
+                                  gamesimul.player2.delRack(tile)
+                              gamesimul.player2.addTileToRack(gamesimul.bag)
+                              gamesimul.listValidMovePlayer2()
+                              next_state = convertToBoard(next_state, gamesimul.player2.getRack())
+                          else:
+                              game.player2.newRack(gamesimul.bag)
+                      gridAll = next_state
+                      #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
+                      statesignal = torch.tensor(gridAll, dtype=torch.float32)
+                      action_probs, value = cnn(statesignal)
+
+
+                      valid_moves = get_valid_moves(gamesimul)
+
+                      # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
+                      action_probs = action_probs *valid_moves# mask invalid moves
+                      #action_probs = add_dirichlet_noise(action_probs)
+
+                      action_probs /= torch.sum(action_probs)
+
+
+                      node.expand(next_state, parent.to_play * -1,torch.squeeze(action_probs,0))
+
+                  self.backpropagate(search_path, value, parent.to_play * -1)
+              return root
+          else:
+              return root
 
 class MCTS_iter:
 
@@ -396,7 +428,7 @@ class MCTS_iter:
 
           action_probs, value = cnn_iter1(statesignal)
 
-          valid_moves = get_valid_moves(state)
+          valid_moves = get_valid_moves(game)
 
           #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
           action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32) # mask invalid moves
@@ -436,7 +468,7 @@ class MCTS_iter:
                   statesignal = statesignal.reshape(3, 6, 7)
 
                   action_probs, value = cnn_iter1(statesignal)
-                  valid_moves = get_valid_moves(next_state)
+                  valid_moves = get_valid_moves(game)
                   #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
                   action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32) # mask invalid moves
                   action_probs /= torch.sum(action_probs)
@@ -812,21 +844,88 @@ def localtrain():
     savebraintrain()
 
 
-def convertToRealTiles(boardPlay):
+def getRack1From(tile):
+    color = list(TileColor)
+    for rack in list(game.player1.getRack()):
+        if rack[0]==color[tile - 1]:
+            game.player1.delRack(Tile(rack[0],rack[1],Coordinate(rack[2][0],rack[2][1])))
+            return rack
+
+def getRack2From(tile):
+    color = list(TileColor)
+    for rack in list(game.player2.getRack()):
+        if rack[0] == color[tile - 1]:
+            game.player2.delRack(Tile(rack[0],rack[1],Coordinate(rack[2][0],rack[2][1])))
+            return rack
+def getRack1FromShape(tile):
+    shape = list(TileShape)
+    for rack in list(game.player1.getRack()):
+        if rack[1]==shape[tile - 1]:
+            game.player1.delRack(Tile(rack[0],rack[1],Coordinate(rack[2][0],rack[2][1])))
+            return rack
+
+def getRack2FromShape(tile):
+    shape = list(TileShape)
+    for rack in list(game.player2.getRack()):
+        if rack[1] == shape[tile - 1]:
+            game.player2.delRack(Tile(rack[0],rack[1],Coordinate(rack[2][0],rack[2][1])))
+            return rack
+
+def convertToRealTiles(boardPlay,player):
     board=[]
-    color=list(newGame.TileColor)
-    shape=list(newGame.TileShape)
-    for index, tile in enumerate(boardPlay):
-        if (tile[2]==0):
-            board.append([color[tile[0] - 1],shape[tile[1] - 1],[tile[3]+index,tile[4]]])
-        if (tile[2]==1):
-            board.append([color[tile[0] - 1],shape[tile[1] - 1],[tile[3],tile[4]+index]])
-        if (tile[2]==2):
-            board.append([color[tile[0] - 1],shape[tile[1] - 1],[tile[3]-index,tile[4]]])
-        if (tile[2]==3):
-            board.append([color[tile[0] - 1],shape[tile[1] - 1],[tile[3],tile[4]-index]])
+
+
+    for tile in boardPlay:
+        if tile[0]!=0:
+            if player==1:
+                tilerack=getRack1From(tile[0])
+                tilerack[2][0] = tile[3]
+                tilerack[2][1] = tile[4]
+                board.append(tilerack)
+            else:
+                tilerack=getRack2From(tile[0])
+                tilerack[2][0] = tile[3]
+                tilerack[2][1] = tile[4]
+                board.append(tilerack)
+
+        if tile[1]!=0:
+            if player == 1:
+                tilerack = getRack1FromShape(tile[1])
+                tilerack[2][0] = tile[3]
+                tilerack[2][1] = tile[4]
+                board.append(tilerack)
+            else:
+                tilerack = getRack2FromShape(tile[1])
+                tilerack[2][0]=tile[3]
+                tilerack[2][1] = tile[4]
+                board.append(tilerack)
     return board
 
+
+def deepGridCopy(gridnorme):
+    val = np.zeros(shape=(26, 54, 54))
+    for i,grid in enumerate(gridnorme):
+        for x,lig in enumerate(grid):
+            for y,col in enumerate(lig):
+                val[i][x][y]=col
+
+    return val
+
+
+
+def removeDoublon(mylist):
+
+
+    duplicates_removed = []
+
+    duplicates_removed.append(mylist[0])
+
+    for i in range(1, len(mylist)):
+
+        if (mylist[i] != mylist[i - 1]):
+            duplicates_removed.append(mylist[i])
+
+    return duplicates_removed
 
 def local(num_game):
 
@@ -840,13 +939,14 @@ def local(num_game):
     for h in range(0, num_game):
         start_time = time.time()
         n_steps = []
+        gameboard=[]
         gridnorme = np.zeros(shape=(26,54, 54))
         game=newGame.Game()
 
 
         first = random.choice([True, False])
-
-        for i in range(0,54):
+        game.setActionprob()
+        while len(game.bag.bag)>0:
 
 
 
@@ -855,23 +955,32 @@ def local(num_game):
 
 
                 if not isFinish(gridnorme):
+                      game.listValidMoves=[]
+                      game.listValidMovePlayer1()
+                      if len(game.listValidMoves) > 0:
+                          gridnorme = convertToBoard(gridnorme,game.player1.getRack())
+                          actions = mcts.run(gridnorme, -1,0,game)
+                          #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
+                          #                        dtype=torch.float32).cuda()
+                          childvisitcount = torch.tensor([[actions.children[visit].visit_count] for visit in actions.children],
+                                                  dtype=torch.float32)
+                          childvisitcount /= torch.sum(childvisitcount)
+                          # game.setActionprob()
+                          boardPlay = game.actionprob[list(actions.children.keys())[
+                              torch.sort(childvisitcount, descending=True).indices[0]]]
 
-                      game.permutePlayer1()
-                      actions = mcts.run(gridnorme, -1,0)
-                      #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                      #                        dtype=torch.float32).cuda()
-                      childvisitcount = torch.tensor([[actions.children[visit].visit_count] for visit in actions.children],
-                                              dtype=torch.float32)
-                      childvisitcount /= torch.sum(childvisitcount)
-                      boardPlay = game.actionprob[list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]]
-                      boardPlay=convertToRealTiles(boardPlay)
+                          boardPlay=convertToRealTiles(boardPlay,1)
+                          gameboard.append(boardPlay)
 
-                      n_steps.append([deepcopy(gridnorme), actions, 0])
-                      gridnorme = convertToBoardPlay(gridnorme, boardPlay, -1)
-                      for tile in boardPlay:
-                          game.player1.delRack(tile)
-                      game.player1.addTileToRack(game.bag)
 
+                          n_steps.append([deepGridCopy(gridnorme), actions, 0])
+                          gridnorme = boardPlayToGridNorm(gridnorme, boardPlay, -1)
+                          for tile in boardPlay:
+                              tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
+                              game.tileOnBoard.append(tile)
+                          game.player1.addTileToRack(game.bag)
+                      else:
+                          game.player1.newRack(game.bag)
                       first = not first
 
                 else:
@@ -881,30 +990,37 @@ def local(num_game):
 
 
 
-                      game.permutePlayer2()
-                      actions = mcts.run(gridnorme, 1,0)
-                      #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                      #                        dtype=torch.float32).cuda()
-                      childvisitcount = torch.tensor(
-                          [[actions.children[visit].visit_count] for visit in actions.children],
-                          dtype=torch.float32)
-                      childvisitcount /= torch.sum(childvisitcount)
-                      boardPlay = game.actionprob[
-                          list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]]
-                      boardPlay = convertToRealTiles(boardPlay)
+                      game.listValidMoves=[]
+                      game.listValidMovePlayer2()
+                      if len(game.listValidMoves)>0:
+                          gridnorme = convertToBoard(gridnorme, game.player2.getRack())
+                          actions = mcts.run(gridnorme, 1,0,game)
+                          #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
+                          #                        dtype=torch.float32).cuda()
+                          childvisitcount = torch.tensor(
+                              [[actions.children[visit].visit_count] for visit in actions.children],
+                              dtype=torch.float32)
+                          childvisitcount /= torch.sum(childvisitcount)
+                          # game.setActionprob()
+                          boardPlay = game.actionprob[list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]]
 
-                      n_steps.append([deepcopy(gridnorme), actions, 0])
-                      gridnorme = convertToBoardPlay(gridnorme, boardPlay, 1)
-                      for tile in boardPlay:
-                          game.player1.delRack(tile)
-                      game.player2.addTileToRack(game.bag)
+                          boardPlay = convertToRealTiles(boardPlay,-1)
+                          gameboard.append(boardPlay)
+                          n_steps.append([deepGridCopy(gridnorme), actions, 0])
+                          gridnorme = boardPlayToGridNorm(gridnorme, boardPlay, 1)
+                          for tile in boardPlay:
+                              tile=Tile(tile[0],tile[1],Coordinate(tile[2][0],tile[2][1]))
+                              game.tileOnBoard.append(tile)
+                          game.player2.addTileToRack(game.bag)
+                      else:
+                          game.player2.newRack(game.bag)
                       first = not first
                 else:
                     break
 
 
 
-        n_steps.append([deepcopy(gridnorme), list(np.zeros(len(game.actionprob))), 0])
+        n_steps.append([deepGridCopy(gridnorme), list(np.zeros(len(game.actionprob))), 0])
         if winner == 1:
 
             reward=-1

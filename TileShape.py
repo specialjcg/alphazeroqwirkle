@@ -1,5 +1,4 @@
 
-class TileShape():
-     Circle,Square,Diamond,Clover,FourPointStar,EightPointStar= range(1,7)
+TileShape={'Circle':1,'Square':2,'Diamond':3,'Clover':4,'FourPointStar':5,'EightPointStar':6}
 
 
