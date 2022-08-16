@@ -473,6 +473,10 @@ class TestClassDemoInstance:
         assert game.validBoard(game.tileOnBoard) == False
 
 
+
+
+
+
     def test_shouldnotvalidMove_forgreeneightpoinstaronsameproposal(self):
         game = Game()
         game.player1.rack=[]
@@ -719,7 +723,10 @@ class TestClassDemoInstance:
         game = Game()
         game.setActionprob()
         boardPlay=[]
-        for i in range(0, 25):
+        import time
+        import datetime
+        start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+        while len(game.bag.bag)>0:
             game.listValidMovePlayer1()
             if len(game.listValidMoves) > 0:
                 alllistvalidmoves = [[j.get() for j in i] for i in game.listValidMoves]
@@ -751,7 +758,10 @@ class TestClassDemoInstance:
             game.player2.addTileToRack(game.bag)
         import matplotlib.pyplot as plt
         import cv2
-
+        end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+        total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
+                                                                                                    '%H:%M:%S'))
+        print('total_time:'+str(total_time))
         from matplotlib.offsetbox import OffsetImage, AnnotationBbox
         from cairosvg import svg2png
 
@@ -774,4 +784,4 @@ class TestClassDemoInstance:
         plt.show(block=True)
         plt.interactive(False)
 
-        assert len(game.listValidMoves) == 144
+        assert game.validBoard(game.tileOnBoard) == True
