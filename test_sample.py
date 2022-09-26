@@ -1,3 +1,4 @@
+from datetime import time
 from random import randrange
 
 import numpy as np
@@ -188,35 +189,16 @@ class TestClassDemoInstance:
         for lign in valboard:
             for i in lign:
                 game.tileOnBoard.append(Tile(i[0],i[1],Coordinate(i[2][0],i[2][1])))
+
+
+
+        from timeit import default_timer as timer
+        start = timer()
+
         game.listValidMovePlayer2()
-        # alllistvalidmoves=[[j.get() for j in i] for i in game.listValidMoves]
-        # import matplotlib.pyplot as plt
-        # import cv2
-        #
-        # from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-        # from cairosvg import svg2png
-        # board = [[['Red', 'FourPointStar', [0, 0]]], [['Blue', 'FourPointStar', [-1, 0]]],
-        #          [['Red', 'FourPointStar', [-1, 1]]]]
-        #
-        # for tiles in alllistvalidmoves:
-        #     fig, ax = plt.subplots(figsize=(12, 8))
-        #     board=[[['Purple', 'FourPointStar', [0, 0]]]]
-        #     board.append(tiles)
-        #     for x in board:
-        #         for tile in x:
-        #             svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + tile[0] + tile[1] + ".svg",
-        #                     write_to="stinkbug.png")
-        #             plt.xlim([0, 50])
-        #             plt.ylim([0, 50])
-        #             arr_img = plt.imread("stinkbug.png")
-        #             half = cv2.resize(arr_img, (0, 0), fx=0.1, fy=0.1)
-        #             im = OffsetImage(half)
-        #
-        #             ab = AnnotationBbox(im, (25 + tile[2][0] * 2.5, 25 + tile[2][1] * 3.5), xycoords='data')
-        #             ax.add_artist(ab)
-        #
-        #     plt.show(block=True)
-        #     plt.interactive(False)
+        end = timer()
+        print(end - start)
+
 
         assert len(game.listValidMoves)==2
 
@@ -676,6 +658,45 @@ class TestClassDemoInstance:
 
         assert game.validBoard(game.tileOnBoard) == False
 
+    def test_shouldnotvalidboardwhensameshapeandcoloronlineorcolumnconsecutive(self):
+        game = Game()
+
+        boardplay = [[['Green', 'FourPointStar', [0, 0]],['Green', 'Square', [1, 0]],['Green', 'Clover', [2, 0]],
+                      ['Green', 'Circle', [3, 0]],['Green', 'Diamond', [4, 0]],['Green', 'EightPointStar', [5, 0]],['Green', 'FourPointStar', [6,0]]]]
+
+        for lign in boardplay:
+            for i in lign:
+                game.tileOnBoard.append(Tile(i[0], i[1], Coordinate(i[2][0], i[2][1])))
+
+
+
+        assert game.validBoard(game.tileOnBoard) == False
+
+    def test_shouldnotvalidboardsameposition(self):
+        game = Game()
+
+        boardplay = [[['Green', 'FourPointStar', [0, 0]], ['Green', 'Square', [1, 0]], ['Green', 'Clover', [2, 0]],
+                      ['Green', 'Circle', [3, 0]], ['Green', 'Diamond', [0, 0]], ['Green', 'EightPointStar', [5, 0]]]]
+        for lign in boardplay:
+            for i in lign:
+                game.tileOnBoard.append(Tile(i[0], i[1], Coordinate(i[2][0], i[2][1])))
+
+
+
+        assert game.goodPositionTempory(game.tileOnBoard) == False
+
+    def test_shouldvalidboardwhensqwirckle(self):
+        game = Game()
+
+        boardplay = [[['Green', 'FourPointStar', [0, 0]], ['Green', 'Square', [1, 0]], ['Green', 'Clover', [2, 0]],
+                      ['Green', 'Circle', [3, 0]], ['Green', 'Diamond', [4, 0]], ['Green', 'EightPointStar', [5, 0]]]]
+
+        for lign in boardplay:
+            for i in lign:
+                game.tileOnBoard.append(Tile(i[0], i[1], Coordinate(i[2][0], i[2][1])))
+
+        assert game.validBoard(game.tileOnBoard) == True
+
     def test_shouldnotvalidMove_for_twoFourPointStarOnsamelign(self):
         game = Game()
 
@@ -701,13 +722,13 @@ class TestClassDemoInstance:
                 svg2png(
                     url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + tile[0] + tile[1] + ".svg",
                     write_to="stinkbug.png")
-                plt.xlim([0, 50])
-                plt.ylim([0, 50])
+                plt.xlim([0, 108])
+                plt.ylim([0,108])
                 arr_img = plt.imread("stinkbug.png")
-                half = cv2.resize(arr_img, (0, 0), fx=0.1, fy=0.1)
+                half = cv2.resize(arr_img, (0, 0), fx=0.05, fy=0.05)
                 im = OffsetImage(half)
 
-                ab = AnnotationBbox(im, (25 + tile[2][0] * 2.5, 25 + tile[2][1] * 3.5), xycoords='data')
+                ab = AnnotationBbox(im, (54 + tile[2][0] * 4.5, 54 + tile[2][1] * 6.5), xycoords='data')
                 ax.add_artist(ab)
 
         plt.show(block=True)
@@ -726,12 +747,12 @@ class TestClassDemoInstance:
         import time
         import datetime
         start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
-        while len(game.bag.bag)>0:
+        while len(game.player1.rack)!=0 and len(game.player2.rack)!=0:
             game.listValidMovePlayer1()
             if len(game.listValidMoves) > 0:
                 alllistvalidmoves = [[j.get() for j in i] for i in game.listValidMoves]
                 choice=randrange(len(game.listValidMoves))
-                boardPlay.append(alllistvalidmoves[choice])
+
                 for tile in alllistvalidmoves[choice]:
                     tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
                     game.tileOnBoard.append(tile)
@@ -745,7 +766,7 @@ class TestClassDemoInstance:
             if len(game.listValidMoves)>0:
                 alllistvalidmoves = [[j.get() for j in i] for i in game.listValidMoves]
                 choice=randrange(len(game.listValidMoves))
-                boardPlay.append(alllistvalidmoves[choice])
+
                 for tile in alllistvalidmoves[choice]:
                     tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
                     game.tileOnBoard.append(tile)
@@ -765,23 +786,19 @@ class TestClassDemoInstance:
         from matplotlib.offsetbox import OffsetImage, AnnotationBbox
         from cairosvg import svg2png
 
-        board=boardPlay.copy()
         fig, ax = plt.subplots(figsize=(12, 8))
-
-        for x in board:
-            for tile in x:
-                svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + tile[0] + tile[1] + ".svg",
+        for tile in game.tileOnBoard:
+                svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + tile.color + tile.shape + ".svg",
                         write_to="stinkbug.png")
-                plt.xlim([0, 50])
-                plt.ylim([0, 50])
+                plt.xlim([0, 216])
+                plt.ylim([0, 216])
                 arr_img = plt.imread("stinkbug.png")
-                half = cv2.resize(arr_img, (0, 0), fx=0.1, fy=0.1)
+                half = cv2.resize(arr_img, (0, 0), fx=0.08, fy=0.08)
                 im = OffsetImage(half)
 
-                ab = AnnotationBbox(im, (25 + tile[2][0] * 2.5, 25 + tile[2][1] * 3.5), xycoords='data')
+                ab = AnnotationBbox(im, (108 + tile.coordinate.x * 8.5, 108 + tile.coordinate.y * 11.5), xycoords='data')
                 ax.add_artist(ab)
 
         plt.show(block=True)
         plt.interactive(False)
-
         assert game.validBoard(game.tileOnBoard) == True

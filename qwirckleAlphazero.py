@@ -12,7 +12,7 @@ import numpy as np
 from collections import namedtuple, deque
 import torch
 
-import Bag as newGame
+import GameNumpy as newGame
 from Coordinate import Coordinate
 from Tile import Tile
 from TileColor import TileColor
@@ -38,8 +38,8 @@ def boardPlayToGridNorm(board, actions, playerval):
     nextBoard = np.copy(board)
     i=0
     for rack in actions:
-        nextBoard[TileColor[rack[0]]-1][rack[2][0]+22][rack[2][1]+22]=playerval
-        nextBoard[5+TileShape[rack[1]]][rack[2][0]+22][rack[2][1]+22]=playerval
+        nextBoard[rack[0]-1][rack[2]+22][rack[3]+22]=playerval
+        nextBoard[5+rack[1]][rack[2]+22][rack[3]+22]=playerval
         i+=1
     return nextBoard
 
@@ -74,26 +74,32 @@ def get_next_state(board, player, action,game):
     nextState=list(game.actionprob[action])
     playerPlayed=[]
     if player == 1:
-        racksPlayer=list(game.player1.getRack())
-    else:
-        racksPlayer=list(game.player2.getRack())
+        racksPlayer=np.copy(game.player1.getRack())
 
-    for rack in racksPlayer:
-        for step in nextState:
-            if step!=0:
-                    if TileColor[rack[0]]==step[0]:
-                        rack[2]=[step[3],step[4]]
-                        playerPlayed.append(rack)
-                        racksPlayer.remove(rack)
-                        nextState.remove(step)
-                        break
-            if step!=0:
-                    if TileShape[rack[1]]==step[1]:
-                        rack[2]=[step[3],step[4]]
-                        playerPlayed.append(rack)
-                        racksPlayer.remove(rack)
-                        nextState.remove(step)
-                        break
+    else:
+        racksPlayer=np.copy(game.player2.getRack())
+
+
+    for step in nextState:
+        if step[0]!=0:
+            tilecolor=racksPlayer[0][np.where(racksPlayer[0]==step[0])]
+            tileshape = racksPlayer[1][np.where(racksPlayer[0] == step[0])]
+            if len(tileshape)!=0:
+                playerPlayed.append([tilecolor[0],tileshape[0],step[2],step[3]])
+                racksPlayer[1][np.where(racksPlayer[0] == step[0])[0]] = 0
+                racksPlayer[0][np.where(racksPlayer[0] == step[0])[0]]=0
+
+                nextState.remove(step)
+                break
+        if step[1]!=0:
+            tilecolor = racksPlayer[0][np.where(racksPlayer[1] == step[1])]
+            tileshape=racksPlayer[1][np.where(racksPlayer[1] == step[1])]
+            if len(tileshape)!=0:
+                playerPlayed.append([tilecolor[0],tileshape[0],step[2],step[3]])
+                racksPlayer[0][np.where(racksPlayer[1] == step[1])[0]]=0
+                racksPlayer[1][np.where(racksPlayer[1] == step[1])[0]]=0
+                nextState.remove(step)
+                break
 
     if len(nextState)==0:
 
@@ -113,41 +119,32 @@ def has_legal_moves(board):
 
 
 
-def findindexinActionprob(i,game):
-    indexList=[]
-    for index, element in enumerate(game.actionprob):
-        if len(i)==len(element):
-            test=True
-            for action in element:
-                if (action[0]==TileColor[i[0].color] or action[1]==TileShape[i[0].shape]) :
-                        if action[3]==i[0].coordinate.x and action[4]==i[0].coordinate.y:
-                            test=test and True
-                        else:
-                            test=False
+def findindexinActionprob(game):
+    valid_moves = np.zeros(len(game.actionprob))
+    for i in game.listValidMoves:
+        for index, element in enumerate(game.actionprob):
+            if len(i)==len(element):
+                test=True
+                if (element[0][0] == i[0][0] or element[0][1] == i[0][1]):
+                    for action in element:
+                                if action[2]==i[0][2] and action[3]==i[0][3]:
+                                    test=test and True
+                                else:
+                                    test=False
                 else:
                     test = False
-            if test :
-                indexList.append(index)
-    return indexList
+                if test :
+                    valid_moves[index]=1
+    return valid_moves
 
 
 
 def get_valid_moves(game):
-    # All moves are invalid by default
-
-    valid_moves=np.zeros(len(game.actionprob))
-    listprob=[]
-
-    for i in game.listValidMoves:
-        listprob.append(findindexinActionprob(i,game))
-    for prob in listprob:
-        for index in prob:
-            valid_moves[index] = 1
 
 
 
 
-    return valid_moves
+    return findindexinActionprob(game)
 
 
 
@@ -267,8 +264,8 @@ def convertToBoard(state, racks):
     nextBoard=np.copy(state)
     i=0
     for rack in racks:
-        nextBoard[12+TileColor[rack[0]]][0,i]=1
-        nextBoard[18+TileShape[rack[1]]][0,i]=1
+        nextBoard[12+rack[0]][0,i]=1
+        nextBoard[18+rack[1]][0,i]=1
         i+=1
     return nextBoard
 
@@ -314,9 +311,9 @@ class MCTS:
 
           root.expand(state, to_play, torch.squeeze(action_probs,0))
           if len(root.children)>0:
-              print('\rsimulation:{0}'.format( len(gamesimul.bag.bag)))
+              print('\rsimulation:{0}'.format( gamesimul.bag.bagCount()))
       #for i in range(777):
-              for i in range(10):
+              for i in range(20):
 
                   node = root
                   search_path = [node]
@@ -343,22 +340,22 @@ class MCTS:
                       if (parent.to_play == 1):
                           if len(gamesimul.listValidMoves) > 0:
                               for tile in isLegalmove:
-                                  tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
-                                  gamesimul.tileOnBoard.append(tile)
-                                  gamesimul.player1.delRack(tile)
+                                  gamesimul.tilecolor[tile[2],tile[3]]=tile[0]
+                                  gamesimul.tileshape[tile[2],tile[3]]=tile[1]
+                                  gamesimul.player1.delRack(tile[0],tile[1])
                               gamesimul.player1.addTileToRack(gamesimul.bag)
-                              gamesimul.listValidMovePlayer1()
+                              # gamesimul.listValidMovePlayer1()
                               next_state = convertToBoard(next_state, gamesimul.player1.getRack())
                           else:
                               gamesimul.player1.newRack(gamesimul.bag)
                       else:
                           if len(gamesimul.listValidMoves) > 0:
                               for tile in isLegalmove:
-                                  tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
-                                  gamesimul.tileOnBoard.append(tile)
-                                  gamesimul.player2.delRack(tile)
+                                  gamesimul.tilecolor[tile[2],tile[3]]=tile[0]
+                                  gamesimul.tileshape[tile[2],tile[3]]=tile[1]
+                                  gamesimul.player2.delRack(tile[0],tile[1])
                               gamesimul.player2.addTileToRack(gamesimul.bag)
-                              gamesimul.listValidMovePlayer2()
+                              # gamesimul.listValidMovePlayer2()
                               next_state = convertToBoard(next_state, gamesimul.player2.getRack())
                           else:
                               gamesimul.player2.newRack(gamesimul.bag)
@@ -699,7 +696,7 @@ def isFinish(gridnorme):
     matrix =np.array(gridnorme)
 # Count occurrence of element '3' in each column
     count = np.count_nonzero(matrix == 1)
-    return game.bag.isEmpty()
+    return game.bag.isEmpty() and( len(game.player1.rack) == 0 or len(game.player2.rack) == 0)
 
 
 
@@ -829,31 +826,35 @@ def localtrain():
 
 
 def getRack1From(tile):
-    color = list(TileColor)
-    for rack in list(game.player1.getRack()):
-        if rack[0]==color[tile - 1]:
-            game.player1.delRack(Tile(rack[0],rack[1],Coordinate(rack[2][0],rack[2][1])))
-            return rack
+    for index, rack in enumerate(game.player1.tilecolor):
+        if rack == tile:
+            shape = game.player1.tileshape[index]
+            color = game.player1.tilecolor[index]
+            game.player1.delRack(color, shape)
+            return [color, shape, 0, 0]
 
 def getRack2From(tile):
-    color = list(TileColor)
-    for rack in list(game.player2.getRack()):
-        if rack[0] == color[tile - 1]:
-            game.player2.delRack(Tile(rack[0],rack[1],Coordinate(rack[2][0],rack[2][1])))
-            return rack
+    for index, rack in enumerate(game.player2.tilecolor):
+        if rack == tile:
+            shape = game.player2.tileshape[index]
+            color = game.player2.tilecolor[index]
+            game.player2.delRack(color, shape)
+            return [color, shape, 0, 0]
 def getRack1FromShape(tile):
-    shape = list(TileShape)
-    for rack in list(game.player1.getRack()):
-        if rack[1]==shape[tile - 1]:
-            game.player1.delRack(Tile(rack[0],rack[1],Coordinate(rack[2][0],rack[2][1])))
-            return rack
+    for index,rack in enumerate(game.player1.tileshape):
+        if rack==tile:
+            shape=game.player1.tileshape[index]
+            color=game.player1.tilecolor[index]
+            game.player1.delRack(color,shape)
+            return [color,shape,0,0]
 
 def getRack2FromShape(tile):
-    shape = list(TileShape)
-    for rack in list(game.player2.getRack()):
-        if rack[1] == shape[tile - 1]:
-            game.player2.delRack(Tile(rack[0],rack[1],Coordinate(rack[2][0],rack[2][1])))
-            return rack
+    for index, rack in enumerate(game.player2.tileshape):
+        if rack == tile:
+            shape = game.player2.tileshape[index]
+            color = game.player2.tilecolor[index]
+            game.player2.delRack(color, shape)
+            return [color, shape, 0, 0]
 
 def convertToRealTiles(boardPlay,player):
     board=[]
@@ -863,25 +864,25 @@ def convertToRealTiles(boardPlay,player):
         if tile[0]!=0:
             if player==1:
                 tilerack=getRack1From(tile[0])
-                tilerack[2][0] = tile[3]
-                tilerack[2][1] = tile[4]
+                tilerack[2] = tile[2]
+                tilerack[3] = tile[3]
                 board.append(tilerack)
             else:
                 tilerack=getRack2From(tile[0])
-                tilerack[2][0] = tile[3]
-                tilerack[2][1] = tile[4]
+                tilerack[2] = tile[2]
+                tilerack[3] = tile[3]
                 board.append(tilerack)
 
         if tile[1]!=0:
             if player == 1:
                 tilerack = getRack1FromShape(tile[1])
-                tilerack[2][0] = tile[3]
-                tilerack[2][1] = tile[4]
+                tilerack[2] = tile[2]
+                tilerack[3] = tile[3]
                 board.append(tilerack)
             else:
                 tilerack = getRack2FromShape(tile[1])
-                tilerack[2][0]=tile[3]
-                tilerack[2][1] = tile[4]
+                tilerack[2]=tile[2]
+                tilerack[3] = tile[3]
                 board.append(tilerack)
     return board
 
@@ -924,15 +925,15 @@ def local(num_game):
     import datetime
 
     for h in range(0, num_game):
-        fig, ax = plt.subplots(figsize=(12, 8))
-        plt.ion()
-        plt.show()
-        plt.xlim([0, 50])
-        plt.ylim([0, 50])
+        # fig, ax = plt.subplots(figsize=(12, 8))
+        # plt.ion()
+        # plt.show()
+        # plt.xlim([0, 50])
+        # plt.ylim([0, 50])
         n_steps = []
         gameboard=[]
         gridnorme = np.zeros(shape=(26,54, 54))
-        game=newGame.Game()
+        game=newGame.GameNumpy()
 
 
         first = random.choice([True, False])
@@ -941,133 +942,91 @@ def local(num_game):
         start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
         from matplotlib.offsetbox import OffsetImage, AnnotationBbox
         from cairosvg import svg2png
-        while len(game.bag.bag)>0:
+        while game.player1.rackCount()!=0 and game.player2.rackCount()!=0 and game.bag.bagCount()!=0 and game.test3round():
 
 
 
 
             if first:
+                game.listValidMovePlayer1()
+                if len(game.listValidMoves) > 0:
+                    gridnorme = convertToBoard(gridnorme, game.player1.getRack())
+                    actions = mcts.run(gridnorme, -1, 0, game)
+                    # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
+                    #                        dtype=torch.float32).cuda()
+                    childvisitcount = torch.tensor(
+                        [[actions.children[visit].visit_count] for visit in actions.children],
+                        dtype=torch.float32)
+                    childvisitcount /= torch.sum(childvisitcount)
+                    # game.setActionprob()
+                    boardPlay = game.actionprob[list(actions.children.keys())[
+                        torch.sort(childvisitcount, descending=True).indices[0]]]
 
+                    boardPlay = convertToRealTiles(boardPlay, 1)
 
-                if not isFinish(gridnorme):
-                      game.listValidMoves=[]
-                      game.listValidMovePlayer1()
-                      if len(game.listValidMoves) > 0:
-                          gridnorme = convertToBoard(gridnorme,game.player1.getRack())
-                          actions = mcts.run(gridnorme, -1,0,game)
-                          #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                          #                        dtype=torch.float32).cuda()
-                          childvisitcount = torch.tensor([[actions.children[visit].visit_count] for visit in actions.children],
-                                                  dtype=torch.float32)
-                          childvisitcount /= torch.sum(childvisitcount)
-                          # game.setActionprob()
-                          boardPlay = game.actionprob[list(actions.children.keys())[
-                              torch.sort(childvisitcount, descending=True).indices[0]]]
-
-                          boardPlay = convertToRealTiles(boardPlay, 1)
-                          boardtemp = game.tileOnBoard.copy()
-                          for tile in boardPlay:
-                              tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
-                              boardtemp.append(tile)
-                          if game.validBoard(boardtemp):
-
-                              gameboard.append(boardPlay)
-
-
-                              n_steps.append([deepGridCopy(gridnorme), actions, 0])
-                              gridnorme = boardPlayToGridNorm(gridnorme, boardPlay, -1)
-                              for tile in boardPlay:
-                                  tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
-                                  game.tileOnBoard.append(tile)
-                          else:
-                              for tile in boardPlay:
-                                  tile = Tile(tile[0], tile[1], Coordinate(0, 0))
-                                  game.player1.rack.append(tile)
-                              for tile in game.player1.rack:
-                                  game.bag.bag.append(tile)
-                              game.player1.rack = []
-                      else:
-                          for tile in game.player1.rack:
-                              game.bag.bag.append(tile)
-                          game.player1.rack = []
-                      game.player1.addTileToRack(game.bag)
-                      first = not first
-
+                    for tile in list(boardPlay):
+                        game.place(tile[0], tile[1], tile[2], tile[3])
+                        game.player1.delRack(tile[0], tile[1])
+                    game.player1.addTileToRack(game.bag)
+                    game.round = 0
                 else:
-                    break
+                    game.player1.newRack(game.bag)
+                    game.round += 1
+
+                first = not first
+
+
             else:
-                if not isFinish(gridnorme):
+                game.listValidMovePlayer2()
+                if len(game.listValidMoves) > 0:
+                    gridnorme = convertToBoard(gridnorme, game.player2.getRack())
+                    actions = mcts.run(gridnorme, 1, 0, game)
+                    # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
+                    #                        dtype=torch.float32).cuda()
+                    childvisitcount = torch.tensor(
+                        [[actions.children[visit].visit_count] for visit in actions.children],
+                        dtype=torch.float32)
+                    childvisitcount /= torch.sum(childvisitcount)
+                    # game.setActionprob()
+                    boardPlay = game.actionprob[
+                        list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]]
 
+                    boardPlay = convertToRealTiles(boardPlay, -1)
 
-
-                      game.listValidMoves=[]
-                      game.listValidMovePlayer2()
-                      if len(game.listValidMoves)>0:
-                          gridnorme = convertToBoard(gridnorme, game.player2.getRack())
-                          actions = mcts.run(gridnorme, 1,0,game)
-                          #actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                          #                        dtype=torch.float32).cuda()
-                          childvisitcount = torch.tensor(
-                              [[actions.children[visit].visit_count] for visit in actions.children],
-                              dtype=torch.float32)
-                          childvisitcount /= torch.sum(childvisitcount)
-                          # game.setActionprob()
-                          boardPlay = game.actionprob[list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]]
-
-                          boardPlay = convertToRealTiles(boardPlay, -1)
-                          boardtemp=deepcopy(game.tileOnBoard)
-                          for tile in boardPlay:
-                              tile = Tile(tile[0], tile[1], Coordinate(tile[2][0], tile[2][1]))
-                              boardtemp.append(tile)
-
-                          if game.validBoard(boardtemp):
-
-                              gameboard.append(boardPlay)
-                              n_steps.append([deepGridCopy(gridnorme), actions, 0])
-                              gridnorme = boardPlayToGridNorm(gridnorme, boardPlay, 1)
-                              for tile in boardPlay:
-                                  tile=Tile(tile[0],tile[1],Coordinate(tile[2][0],tile[2][1]))
-                                  game.tileOnBoard.append(tile)
-                          else:
-                              for tile in boardPlay:
-                                  tile = Tile(tile[0], tile[1], Coordinate(0, 0))
-                                  game.player2.rack.append(tile)
-                              for tile in game.player2.rack:
-                                  game.bag.bag.append(tile)
-                              game.player2.rack = []
-
-                      else:
-                          for tile in game.player2.rack:
-                              game.bag.bag.append(tile)
-                          game.player2.rack = []
-                      game.player2.addTileToRack(game.bag)
-                      first = not first
+                    for tile in list(boardPlay):
+                        game.place(tile[0], tile[1], tile[2], tile[3])
+                        game.player2.delRack(tile[0], tile[1])
+                    game.player2.addTileToRack(game.bag)
+                    game.round = 0
                 else:
-                    break
+                    game.player2.newRack(game.bag)
+                    game.round += 1
 
-            board = gameboard.copy()
+                first = not first
 
-            for x in board:
-                for tile in x:
-                    svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + tile[0] + tile[1] + ".svg",
+        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+        from cairosvg import svg2png
+        fig, ax = plt.subplots(figsize=(12, 8))
+        for x in range(108):
+            for y in range(108):
+                if game.tilecolor[x, y] != 0:
+                    svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + list(TileColor.keys())[
+                        game.tilecolor[x, y] - 1] + list(TileShape.keys())[game.tileshape[x, y] - 1] + ".svg",
                             write_to="stinkbug.png")
-
+                    plt.xlim([0, 50])
+                    plt.ylim([0, 50])
                     arr_img = plt.imread("stinkbug.png")
                     half = cv2.resize(arr_img, (0, 0), fx=0.1, fy=0.1)
                     im = OffsetImage(half)
 
-                    ab = AnnotationBbox(im, (25 + tile[2][0] * 2.5, 25 + tile[2][1] * 3.5), xycoords='data')
+                    ab = AnnotationBbox(im, (25 + (x - 54) * 2.5, 25 + (y - 54) * 3.5), xycoords='data')
                     ax.add_artist(ab)
 
-            plt.draw()
-            plt.pause(0.001)
-            # plt.show(block=False)
+        # plt.draw()
+        # plt.pause(0.001)
+        plt.show(block=False)
 
-            # plt.interactive(False)
-
-
-
-
+        plt.interactive(False)
         n_steps.append([deepGridCopy(gridnorme), list(np.zeros(len(game.actionprob))), 0])
         end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
         total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,

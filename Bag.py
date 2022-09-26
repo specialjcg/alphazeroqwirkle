@@ -2,7 +2,6 @@
 
 import random
 import itertools
-
 import numpy as np
 
 from TileColor import TileColor
@@ -162,21 +161,21 @@ class Game:
                 return self.tileOnBoardTempory
             return None  
 
-    def permutationFromPositionTile(self,permutations,posx,posy):
+    def permutationFromPositionTile(self,permutations,posx,posy,dec):
 
           tileup = self.getTile(Coordinate(posx, posy + 1), self.tileOnBoard)
           tiledown = self.getTile(Coordinate(posx, posy - 1), self.tileOnBoard)
           tileleft = self.getTile(Coordinate(posx - 1, posy), self.tileOnBoard)
           tileright = self.getTile(Coordinate(posx + 1, posy), self.tileOnBoard)
           i=0
-          dec=1
-          if (len(self.tileOnBoard)<1):
-              dec=0
+
 
           while i<len(permutations) and tileup.color==0:
               rackValidMove = []
               self.tileOnBoardTempory = []
               self.tileOnBoardTempory = deepBoardCopy(self.tileOnBoard)
+
+
               for index,tile in enumerate(permutations[i]):
 
                   self.tileOnBoardTempory.append(Tile(tile[0], tile[1],Coordinate(posx,posy+index+dec)))
@@ -218,10 +217,57 @@ class Game:
               if self.validBoard(self.tileOnBoardTempory):
                   self.listValidMoves.add(tuple(rackValidMove))
               i += 1
+    def permutationFromPositionTiletileup(self,permutation,posx,posy,dec):
+
+
+
+              self.tileOnBoardTempory = deepBoardCopy(self.tileOnBoard)
+
+              rackValidMove=[Tile(tile[0], tile[1],Coordinate(posx,posy+index+dec)) for index,tile in enumerate(permutation)]
+              self.tileOnBoardTempory.extend(rackValidMove)
+
+
+              if self.validBoard(self.tileOnBoardTempory):
+                  self.listValidMoves.add(tuple(rackValidMove))
 
 
 
 
+
+    def permutationFromPositionTiletileright(self,permutation,posx,posy,dec):
+
+
+
+              self.tileOnBoardTempory = deepBoardCopy(self.tileOnBoard)
+              rackValidMove=[Tile(tile[0], tile[1], Coordinate(posx+ index+dec, posy )) for index, tile in enumerate(permutation) ]
+              self.tileOnBoardTempory.extend(rackValidMove)
+
+              if self.validBoard(self.tileOnBoardTempory):
+                  self.listValidMoves.add(tuple(rackValidMove))
+
+
+
+    def permutationFromPositionTiletiledown(self, permutation, posx, posy, dec):
+
+
+            self.tileOnBoardTempory = deepBoardCopy(self.tileOnBoard)
+            rackValidMove = [Tile(tile[0], tile[1], Coordinate(posx, posy - index - dec)) for index, tile in
+                             enumerate(permutation)]
+            self.tileOnBoardTempory.extend(rackValidMove)
+
+            if self.validBoard(self.tileOnBoardTempory):
+                self.listValidMoves.add(tuple(rackValidMove))
+
+
+    def permutationFromPositionTiletileleft(self, permutation, posx, posy, dec):
+
+                self.tileOnBoardTempory = deepBoardCopy(self.tileOnBoard)
+                rackValidMove = [Tile(tile[0], tile[1], Coordinate(posx - index - dec, posy)) for index, tile in
+                                 enumerate(permutation)]
+                self.tileOnBoardTempory.extend(rackValidMove)
+
+                if self.validBoard(self.tileOnBoardTempory):
+                    self.listValidMoves.add(tuple(rackValidMove))
 
 
 
@@ -234,14 +280,12 @@ class Game:
         for i in range(1,len(inp_list)+1):
             permutations.extend(list(itertools.permutations(inp_list, r=i)))
 
-        permutations = np.unique(permutations)
+        if (len(permutations) > 1):
+            permutations = np.unique(permutations)
+            vfunc = np.vectorize(self.validTilePerùutation)
 
-        newlist = []
-        for tiles in permutations:
-            if (self.validTilePerùutation(tiles)):
-                newlist.append(tiles)
+            permutations = permutations[np.where(vfunc(permutations) == True)]
 
-        permutations = newlist
 
 
 
@@ -251,12 +295,20 @@ class Game:
                 tiledown = self.getTile(Coordinate(tile.coordinate.x, tile.coordinate.y + 1), self.tileOnBoard)
                 tileleft = self.getTile(Coordinate(tile.coordinate.x - 1, tile.coordinate.y), self.tileOnBoard)
                 tileright = self.getTile(Coordinate(tile.coordinate.x + 1, tile.coordinate.y), self.tileOnBoard)
+                i = 0
 
-                if not (tileright.color != 0 and tiledown.color != 0 and tileleft.color != 0 and tileup.color != 0):
-                    self.permutationFromPositionTile(permutations,tile.coordinate.x,tile.coordinate.y)
+                while i < len(permutations):
+                    if  (tileup.color == 0):
+                        self.permutationFromPositionTiletileup(permutations[i],tile.coordinate.x,tile.coordinate.y,1)
+                    if (tileright.color == 0):
+                        self.permutationFromPositionTiletileright(permutations[i],tile.coordinate.x,tile.coordinate.y,1)
+                    if (tiledown.color == 0) :
+                        self.permutationFromPositionTiletiledown(permutations[i],tile.coordinate.x,tile.coordinate.y,1)
+                    if (tileleft.color == 0) :
+                        self.permutationFromPositionTiletileleft(permutations[i],tile.coordinate.x,tile.coordinate.y,1)
+                    i += 1
         else:
-            self.permutationFromPositionTile(permutations, 0,0)
-
+            self.permutationFromPositionTile(permutations, 0,0,0)
 
 
     def listValidMovePlayer2(self):
@@ -266,26 +318,32 @@ class Game:
         for i in range(1,len(inp_list)+1):
             permutations.extend(list(itertools.permutations(inp_list, r=i)))
 
-        permutations = np.unique(permutations)
+        if (len(permutations)>1):
+            permutations = np.unique(permutations)
+            vfunc = np.vectorize(self.validTilePerùutation)
 
+            permutations = permutations[np.where(vfunc(permutations) == True)]
 
-        newlist=[]
-        for tiles in permutations:
-            if (self.validTilePerùutation(tiles)):
-                newlist.append(tiles)
-
-        permutations = newlist
         if len(self.tileOnBoard) > 0:
             for tile in self.tileOnBoard:
                 tileup = self.getTile(Coordinate(tile.coordinate.x, tile.coordinate.y - 1), self.tileOnBoard)
                 tiledown = self.getTile(Coordinate(tile.coordinate.x, tile.coordinate.y + 1), self.tileOnBoard)
                 tileleft = self.getTile(Coordinate(tile.coordinate.x - 1, tile.coordinate.y), self.tileOnBoard)
                 tileright = self.getTile(Coordinate(tile.coordinate.x + 1, tile.coordinate.y), self.tileOnBoard)
+                i = 0
 
-                if not (tileright.color != 0 and tiledown.color != 0 and tileleft.color != 0 and tileup.color != 0):
-                    self.permutationFromPositionTile(permutations, tile.coordinate.x, tile.coordinate.y)
+                while i < len(permutations):
+                    if (tileup.color == 0):
+                        self.permutationFromPositionTiletileup(permutations[i], tile.coordinate.x, tile.coordinate.y, 1)
+                    if (tileright.color == 0):
+                        self.permutationFromPositionTiletileright(permutations[i], tile.coordinate.x, tile.coordinate.y, 1)
+                    if (tiledown.color == 0):
+                        self.permutationFromPositionTiletiledown(permutations[i], tile.coordinate.x, tile.coordinate.y, 1)
+                    if (tileleft.color == 0):
+                        self.permutationFromPositionTiletileleft(permutations[i], tile.coordinate.x, tile.coordinate.y, 1)
+                    i += 1
         else:
-            self.permutationFromPositionTile(permutations, 0, 0)
+            self.permutationFromPositionTile(permutations, 0, 0,0)
 
 
     def setActionprob(self):
@@ -374,6 +432,13 @@ class Game:
                     if (tileOnBoardTempory[index].coordinate.x==tileOnBoardTempory[indexOther].coordinate.x and tileOnBoardTempory[index].coordinate.y==tileOnBoardTempory[indexOther].coordinate.y):
                         return False
         return True
+    def goodPositionobboard(self,tileOnBoardTempory):
+        for index in range(len(tileOnBoardTempory)):
+            for indexOther in range(len(tileOnBoardTempory)):
+                if index!=indexOther:
+                    if (tileOnBoardTempory[index].coordinate.x==tileOnBoardTempory[indexOther].coordinate.x and tileOnBoardTempory[index].coordinate.y==tileOnBoardTempory[indexOther].coordinate.y):
+                        return False
+        return True
     def validBoard(self,tileOnBoardTempory):
 
             if len(tileOnBoardTempory)<2:
@@ -381,7 +446,7 @@ class Game:
             if (self.goodPositionTempory(tileOnBoardTempory)):
 
                 for tile in tileOnBoardTempory:
-                    for pos in range (1,6):
+                    for pos in range (1,7):
                         tileup = self.getTile(Coordinate(tile.coordinate.x, tile.coordinate.y - pos), tileOnBoardTempory)
                         if (tileup.color!=0):
                             if (tile.color!=tileup.color and tile.shape!=tileup.shape):
@@ -391,7 +456,7 @@ class Game:
                         else:
                             break
                 for tile in tileOnBoardTempory:
-                    for pos in range(1, 6):
+                    for pos in range(1, 7):
                         tiledown = self.getTile(Coordinate(tile.coordinate.x, tile.coordinate.y + pos), tileOnBoardTempory)
 
                         if (tiledown.color!=0):
@@ -402,7 +467,7 @@ class Game:
                         else:
                             break
                 for tile in tileOnBoardTempory:
-                    for pos in range(1, 6):
+                    for pos in range(1, 7):
                         tileleft = self.getTile(Coordinate(tile.coordinate.x - pos, tile.coordinate.y), tileOnBoardTempory)
 
                         if (tileleft.color!=0):
@@ -413,7 +478,7 @@ class Game:
                         else:
                             break
                 for tile in tileOnBoardTempory:
-                    for pos in range(1, 6):
+                    for pos in range(1, 7):
                         tileright=self.getTile(Coordinate(tile.coordinate.x+pos,tile.coordinate.y),tileOnBoardTempory)
 
                         if (tileright.color!=0):
