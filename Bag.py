@@ -376,6 +376,7 @@ class Game:
                                 tile1.append([0,TileShape[shape],direction,x+k*dirx,y+k*diry])
                             self.actionprob.append(tile1)
 
+
     def playPlayer1(self):
         
         self.tileOnBoardTempory=deepBoardCopy(self.tileOnBoard)

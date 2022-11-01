@@ -3,6 +3,7 @@
 
 import os
 from copy import deepcopy
+
 import torch.nn as nn
 import torch.nn.functional as F
 import ujson
@@ -72,49 +73,15 @@ def gridNormToBoardPlay(gridnorme):
 
 def get_next_state(board, player, action,game):
     nextState=list(game.actionprob[action])
-    playerPlayed=[]
-    if player == 1:
-        racksPlayer=np.copy(game.player1.getRack())
 
-    else:
-        racksPlayer=np.copy(game.player2.getRack())
-
-
-    for step in nextState:
-        if step[0]!=0:
-            tilecolor=racksPlayer[0][np.where(racksPlayer[0]==step[0])]
-            tileshape = racksPlayer[1][np.where(racksPlayer[0] == step[0])]
-            if len(tileshape)!=0:
-                playerPlayed.append([tilecolor[0],tileshape[0],step[2],step[3]])
-                racksPlayer[1][np.where(racksPlayer[0] == step[0])[0]] = 0
-                racksPlayer[0][np.where(racksPlayer[0] == step[0])[0]]=0
-
-                nextState.remove(step)
-                break
-        if step[1]!=0:
-            tilecolor = racksPlayer[0][np.where(racksPlayer[1] == step[1])]
-            tileshape=racksPlayer[1][np.where(racksPlayer[1] == step[1])]
-            if len(tileshape)!=0:
-                playerPlayed.append([tilecolor[0],tileshape[0],step[2],step[3]])
-                racksPlayer[0][np.where(racksPlayer[1] == step[1])[0]]=0
-                racksPlayer[1][np.where(racksPlayer[1] == step[1])[0]]=0
-                nextState.remove(step)
-                break
-
-    if len(nextState)==0:
-
-       return boardPlayToGridNorm(board, playerPlayed, 1), -player, playerPlayed
+    for tiles in game.listValidMoves:
+        if nextState == [[tile[0], tile[1]] for tile in tiles]:
+            return boardPlayToGridNorm(board, tiles, 1), -player, tiles
     # Return the new game, but
     # change the perspective of the game with negative
     return board, -player,[]
 
 
-def has_legal_moves(board):
-    for colonne in range(7):
-        if not colonnepleine(board, colonne) and sum(
-                (x != 0) for x in board.transpose().flatten()) < 42:
-            return True
-    return False
 
 
 
@@ -122,21 +89,53 @@ def has_legal_moves(board):
 def findindexinActionprob(game):
     valid_moves = np.zeros(len(game.actionprob))
     for i in game.listValidMoves:
-        for index, element in enumerate(game.actionprob):
+        j=0
+        for element in game.actionprob:
             if len(i)==len(element):
-                test=True
                 if (element[0][0] == i[0][0] or element[0][1] == i[0][1]):
                     for action in element:
-                                if action[2]==i[0][2] and action[3]==i[0][3]:
-                                    test=test and True
-                                else:
-                                    test=False
+
+                        if action[2]==i[0][2] and action[3]==i[0][3]:
+                            valid_moves[j] = 1
+                        else:
+                            valid_moves[j] = 0
+                            break
+
                 else:
-                    test = False
-                if test :
-                    valid_moves[index]=1
+                    valid_moves[j] = 0
+            j+=1
     return valid_moves
 
+def findindexinActionprobnumpy(game):
+    valid_moves = np.zeros(24624)
+    for i in game.listValidMoves:
+        valprob=[]
+        for testnumpy in i:
+            valprob.append([testnumpy[0],testnumpy[1]])
+
+
+
+        for index, x in enumerate(game.actionprob):
+            if x==tuple(valprob):
+                valid_moves[index]=1
+
+
+        # j=0
+        # for element in game.actionprob:
+        #     if len(i)==len(element):
+        #         if (element[0][0] == i[0][0] or element[0][1] == i[0][1]):
+        #             for action in element:
+        #
+        #                 if action[2]==i[0][2] and action[3]==i[0][3]:
+        #                     valid_moves[j] = 1
+        #                 else:
+        #                     valid_moves[j] = 0
+        #                     break
+        #
+        #         else:
+        #             valid_moves[j] = 0
+        #     j+=1
+    return valid_moves
 
 
 def get_valid_moves(game):
@@ -144,7 +143,7 @@ def get_valid_moves(game):
 
 
 
-    return findindexinActionprob(game)
+    return findindexinActionprobnumpy(game)
 
 
 
@@ -244,7 +243,7 @@ class Node:
         indiceStateChildren=torch.sort(action_probs, descending=True).indices
 
         for a, prob in enumerate(action_probs):
-            if prob >=0.1:
+            if prob >=0.025:
                self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,action=indiceStateChildren[a].item())
 
 
@@ -259,6 +258,13 @@ class Node:
     def actionCouldWin(self, state, param):
         return not isFinish(state)
 
+    def copy(self):
+        node=Node(self.prior,self.to_play,self.action)
+        node.visit_count=self.visit_count
+        node.state=self.state
+        node.children=self.children.copy()
+        return node
+
 
 def convertToBoard(state, racks):
     nextBoard=np.copy(state)
@@ -269,7 +275,7 @@ def convertToBoard(state, racks):
         i+=1
     return nextBoard
 
-
+import datetime
 class MCTS:
 
     def backpropagate(self, search_path, value, to_play):
@@ -311,11 +317,14 @@ class MCTS:
 
           root.expand(state, to_play, torch.squeeze(action_probs,0))
           if len(root.children)>0:
-              print('\rsimulation:{0}'.format( gamesimul.bag.bagCount()))
-      #for i in range(777):
-              for i in range(20):
 
-                  node = root
+              start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+
+
+      #for i in range(777):
+              for i in range(100):
+
+                  node = root.copy()
                   search_path = [node]
 
 
@@ -334,31 +343,35 @@ class MCTS:
 
                   # The value of the new state from the perspective of the other player
                   value = get_reward_for_player(next_state, player=to_play)
-                  if value==0 and len(isLegalmove)!=0 :
+                  if value==0 and len(isLegalmove) != 0:
                       # If the game has not ended:
                       # EXPAND
                       if (parent.to_play == 1):
-                          if len(gamesimul.listValidMoves) > 0:
-                              for tile in isLegalmove:
-                                  gamesimul.tilecolor[tile[2],tile[3]]=tile[0]
-                                  gamesimul.tileshape[tile[2],tile[3]]=tile[1]
-                                  gamesimul.player1.delRack(tile[0],tile[1])
-                              gamesimul.player1.addTileToRack(gamesimul.bag)
-                              # gamesimul.listValidMovePlayer1()
-                              next_state = convertToBoard(next_state, gamesimul.player1.getRack())
-                          else:
-                              gamesimul.player1.newRack(gamesimul.bag)
+                              if len(gamesimul.listValidMoves) > 0:
+                                  for tile in isLegalmove:
+                                      gamesimul.place(tile[0], tile[1], tile[2], tile[3])
+                                      gamesimul.player1.delRack(tile[0],tile[1])
+                                  gamesimul.player1.addTileToRack(gamesimul.bag)
+                                  gamesimul.listValidMovePlayer1()
+                                  next_state = convertToBoard(next_state, gamesimul.player1.getRack())
+
+                              else:
+                                  gamesimul.player1.newRack(gamesimul.bag)
+
+
+
                       else:
-                          if len(gamesimul.listValidMoves) > 0:
-                              for tile in isLegalmove:
-                                  gamesimul.tilecolor[tile[2],tile[3]]=tile[0]
-                                  gamesimul.tileshape[tile[2],tile[3]]=tile[1]
-                                  gamesimul.player2.delRack(tile[0],tile[1])
-                              gamesimul.player2.addTileToRack(gamesimul.bag)
-                              # gamesimul.listValidMovePlayer2()
-                              next_state = convertToBoard(next_state, gamesimul.player2.getRack())
-                          else:
-                              gamesimul.player2.newRack(gamesimul.bag)
+
+                              if len(gamesimul.listValidMoves) > 0:
+                                  for tile in isLegalmove:
+                                      gamesimul.place(tile[0], tile[1], tile[2], tile[3])
+                                      gamesimul.player2.delRack(tile[0],tile[1])
+                                  gamesimul.player2.addTileToRack(gamesimul.bag)
+                                  gamesimul.listValidMovePlayer2()
+                                  next_state = convertToBoard(next_state, gamesimul.player2.getRack())
+                              else:
+                                  gamesimul.player2.newRack(gamesimul.bag)
+
                       gridAll = next_state
                       #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
                       statesignal = torch.tensor(gridAll, dtype=torch.float32)
@@ -377,6 +390,10 @@ class MCTS:
                       node.expand(next_state, parent.to_play * -1,torch.squeeze(action_probs,0))
 
                   self.backpropagate(search_path, value, parent.to_play * -1)
+              end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+              total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
+                                                                                                          '%H:%M:%S'))
+              print('total_time:' + str(total_time))
               return root
           else:
               return root
@@ -392,72 +409,107 @@ class MCTS_iter:
             node.value_sum += value if node.to_play == to_play else -value
             node.visit_count += 1
 
-    def run(self, state, to_play,action):
-      with torch.no_grad():
-          root = Node(0, to_play, action)
-          #   convert_zero(state, gridnormeZero)
-          #   convert_one(state, gridnormeOne)
-          #   convert_neg_one(state, gridnormenegOne)
-          if to_play == 1:
-              gridAll = convertToBoard(state, game.player1.getRack())
-              game.player1.addTileToRack(game.bag)
-          else:
-              gridAll = convertToBoard(state, game.player2.getRack())
-              game.player2.addTileToRack(game.bag)
-          #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-          statesignal = torch.tensor(gridAll, dtype=torch.float32)
+    def run(self, state, to_play, action, game):
+        with torch.no_grad():
+            #   gridnormeOne = np.zeros(shape=(26,54,54))
+            #   gridnormenegOne = np.zeros(shape=(6, 7))
+            #   gridnormeZero = np.zeros(shape=(6, 7))
+            root = Node(0, to_play, action)
+            #   convert_zero(state, gridnormeZero)
+            #   convert_one(state, gridnormeOne)
+            #   convert_neg_one(state, gridnormenegOne)
 
-          action_probs, value = cnn_iter1(statesignal)
+            # statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
+            statesignal = torch.tensor(state, dtype=torch.float32)
+            action_probs, value = cnn_iter1(statesignal)
+            gamesimul = game.__copy__()
 
-          valid_moves = get_valid_moves(game)
+            valid_moves = get_valid_moves(gamesimul)
 
-          #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
-          action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32) # mask invalid moves
-          action_probs /= torch.sum(action_probs)
-          action_probs = add_dirichlet_noise(action_probs)
-          root.expand(state, to_play, action_probs)
+            # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
+            action_probs = action_probs * valid_moves  # mask invalid moves
+            # action_probs = add_dirichlet_noise(action_probs)
 
-          for i in range(777):
+            action_probs /= torch.sum(action_probs)
 
-              node = root
-              search_path = [node]
-              print('\rsimulation:{:.2f}'.format(i),end='')
+            root.expand(state, to_play, torch.squeeze(action_probs, 0))
+            if len(root.children) > 0:
 
-              # SELECT
-              while node.expanded():
-                  node = node.select_child()
-                  search_path.append(node)
+                start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
 
-              parent = search_path[-2]
-              state = parent.state
-              # Now we're at a leaf node and we would like to expand
-              # Players always play from their own perspective
-              next_state, _ = get_next_state(state, player=1, action=node.action)
-              # Get the board from the perspective of the other player
-              next_state = get_canonical_board(next_state, player=-1)
+                # for i in range(777):
+                for i in range(100):
 
-              # The value of the new state from the perspective of the other player
-              value = get_reward_for_player(next_state, player=1)
-              if value==0 and has_legal_moves(next_state):
-                  # If the game has not ended:
-                  # EXPAND
+                    node = root.copy()
+                    search_path = [node]
 
-                  gridAll = next_state
-                  #statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-                  statesignal = torch.tensor([gridAll], dtype=torch.float32)
+                    # SELECT
+                    while node.expanded():
+                        action, node = node.select_child()
+                        search_path.append(node)
 
-                  statesignal = statesignal.reshape(3, 6, 7)
+                    parent = search_path[-2]
+                    state = parent.state
+                    # Now we're at a leaf node and we would like to expand
+                    # Players always play from their own perspective
+                    next_state, _, isLegalmove = get_next_state(state, player=to_play, action=action, game=gamesimul)
+                    # Get the board from the perspective of the other player
+                    next_state = get_canonical_board(next_state, player=-to_play)
 
-                  action_probs, value = cnn_iter1(statesignal)
-                  valid_moves = get_valid_moves(game)
-                  #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
-                  action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32) # mask invalid moves
-                  action_probs /= torch.sum(action_probs)
+                    # The value of the new state from the perspective of the other player
+                    value = get_reward_for_player(next_state, player=to_play)
+                    if value == 0 and len(isLegalmove) != 0:
+                        # If the game has not ended:
+                        # EXPAND
+                        if (parent.to_play == 1):
+                            if len(gamesimul.listValidMoves) > 0:
+                                for tile in isLegalmove:
+                                    gamesimul.place(tile[0], tile[1], tile[2], tile[3])
+                                    gamesimul.player1.delRack(tile[0], tile[1])
+                                gamesimul.player1.addTileToRack(gamesimul.bag)
+                                gamesimul.listValidMovePlayer1()
+                                next_state = convertToBoard(next_state, gamesimul.player1.getRack())
 
-                  node.expand(next_state, parent.to_play * -1, action_probs)
+                            else:
+                                gamesimul.player1.newRack(gamesimul.bag)
 
-              self.backpropagate(search_path, value, parent.to_play * -1)
-          return root
+
+
+                        else:
+
+                            if len(gamesimul.listValidMoves) > 0:
+                                for tile in isLegalmove:
+                                    gamesimul.place(tile[0], tile[1], tile[2], tile[3])
+                                    gamesimul.player2.delRack(tile[0], tile[1])
+                                gamesimul.player2.addTileToRack(gamesimul.bag)
+                                gamesimul.listValidMovePlayer2()
+                                next_state = convertToBoard(next_state, gamesimul.player2.getRack())
+                            else:
+                                gamesimul.player2.newRack(gamesimul.bag)
+
+                        gridAll = next_state
+                        # statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
+                        statesignal = torch.tensor(gridAll, dtype=torch.float32)
+                        action_probs, value = cnn_iter1(statesignal)
+
+                        valid_moves = get_valid_moves(gamesimul)
+
+                        # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
+                        action_probs = action_probs * valid_moves  # mask invalid moves
+                        # action_probs = add_dirichlet_noise(action_probs)
+
+                        action_probs /= torch.sum(action_probs)
+
+                        node.expand(next_state, parent.to_play * -1, torch.squeeze(action_probs, 0))
+
+                    self.backpropagate(search_path, value, parent.to_play * -1)
+                end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+                total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
+                                                                                                            '%H:%M:%S'))
+                print('total_time:' + str(total_time))
+                return root
+            else:
+                return root
 
 
 
@@ -476,10 +528,11 @@ class ConvBlock(nn.Module):
         #self.bn4 = nn.BatchNorm2d(2048).cuda()
         #self.conv5 = nn.Conv2d(2048, 512, kernel_size=4, stride=1, padding=1).cuda()
         #self.bn5 = nn.BatchNorm2d(512).cuda()
-        self.conv1 = nn.Conv2d(26, 256, kernel_size=12, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(26, 256 , kernel_size=12, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(256)
-        self.conv2 = nn.Conv2d(256, 512, kernel_size=12, stride=1, padding=1)
-        self.bn2 = nn.BatchNorm2d(512)
+        self.conv2 = nn.Conv2d(256, 19, kernel_size=12, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(19)
+
         #self.conv3 = nn.Conv2d(2048, 4096, kernel_size=4, stride=1, padding=1)
         #self.bn3 = nn.BatchNorm2d(4096)
         #self.conv4 = nn.Conv2d(4096, 2048, kernel_size=4, stride=1, padding=1)
@@ -500,7 +553,7 @@ class ConvBlock(nn.Module):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, inplanes=512, planes=512, stride=1, downsample=None):
+    def __init__(self, inplanes=19  , planes=19, stride=1, downsample=None):
         super(ResBlock, self).__init__()
         #self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
         #                       padding=1, bias=False).cuda()
@@ -532,29 +585,30 @@ class ResBlock(nn.Module):
 
 class OutBlock(nn.Module):
     # shape=6*7*32
-    shape = 663552
+    shape1 = 24624
+    # shape = 24156*25*25
+    shape = 23436
 
     def __init__(self):
         super(OutBlock, self).__init__()
+        self.fc = nn.Linear(self.shape1, self.shape)
 
-        self.fc1 = nn.Linear(self.shape,512)
+        self.fc1 = nn.Linear(self.shape1,512)
         self.fc2 = nn.Linear(512, 1)
         self.drp = nn.Dropout(0.3)
 
 
 
         self.logsoftmax = nn.LogSoftmax(dim=1)
-        self.fc = nn.Linear(512, 460800)
 
     def forward(self, s):
-        v = s.view(-1, self.shape)  # batch_size X channel X height X width
+        v = s.view(-1, self.shape1)  # batch_size X channel X height X width
         v = self.drp(F.relu(self.fc1(v)))
         v = torch.tanh(self.fc2(v))
 
 
-        p = s.view(-1, self.shape)
-        p = self.drp(F.relu(self.fc1(p)))
-        p = self.fc(p)
+        p = s.view(-1, self.shape1)
+        p = self.drp(F.relu(self.fc(p)))
         p = self.logsoftmax(p).exp()
         return p, v
 
@@ -564,14 +618,14 @@ class ConnectNet(nn.Module):
         super(ConnectNet, self).__init__()
         #self.conv = ConvBlock().cuda()
         self.conv = ConvBlock()
-        for block in range(30):
+        for block in range(20):
             #setattr(self, "res_%i" % block, ResBlock().cuda())
             setattr(self, "res_%i" % block, ResBlock())
         self.outblock = OutBlock()
 
     def forward(self, s):
         s = self.conv(s)
-        for block in range(30):
+        for block in range(20):
             s = getattr(self, "res_%i" % block)(s)
         s = self.outblock(s)
         return s
@@ -758,7 +812,7 @@ def localtrain():
 
 
 
-    for epoch in range(0, 20):
+    for epoch in range(0, 4):
 
 
       batch_idx = 0
@@ -770,31 +824,38 @@ def localtrain():
 
         sample_ids = np.random.randint(0, len(memory), BATCH_SIZE)
         boards, pis, vs = list(zip(*[(memory[i]) for i in sample_ids]))
-        gridnormeOne = np.zeros(shape=(6, 7))
-        gridnormenegOne = np.zeros(shape=(6, 7))
-        gridnormeZero = np.zeros(shape=(6, 7))
-        boards = torch.FloatTensor(boards).cuda()
+        boards = torch.FloatTensor(boards)
+        # boards = torch.FloatTensor(boards).cuda()
 
         boardsAll=[]
         for board in boards:
 
-            gridAll = [gridnormeZero, gridnormeOne, gridnormenegOne]
-            last_signal = torch.FloatTensor(gridAll).cuda()
-            last_signal = last_signal.reshape(3, 6, 7)
+
+            last_signal = torch.FloatTensor(board)
+            # last_signal = torch.FloatTensor(gridAll).cuda()
+
             boardsAll.append(last_signal)
         pisAll = []
         for policy in pis:
-            policy = torch.tensor(policy, dtype=torch.float32).cuda()
+            # policy = torch.tensor(policy, dtype=torch.float32).cuda()
+
+            valid_moves = np.zeros(24624)
+            valid_moves[policy]=1
+            policy = torch.FloatTensor(valid_moves)
             pisAll.append(policy)
         vsAll = []
         for value in vs:
-            value = torch.tensor(value, dtype=torch.float32).cuda()
+            value = torch.tensor(value, dtype=torch.float32)
+            # value = torch.tensor(value, dtype=torch.float32).cuda()
             vsAll.append(value)
 
-        statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll]).cuda()
+        statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll])
+        # statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll]).cuda()
 
-        target_pis =torch.FloatTensor([t.cpu().numpy() for t in pisAll]).cuda()
-        target_vs = torch.FloatTensor(vsAll).cuda().reshape(BATCH_SIZE,1)
+        # target_pis =torch.FloatTensor([t.cpu().numpy() for t in pisAll]).cuda()
+        target_pis =torch.FloatTensor([t.detach().cpu().numpy() for t in pisAll])
+        # target_vs = torch.FloatTensor(vsAll).cuda().reshape(BATCH_SIZE,1)
+        target_vs = torch.FloatTensor(vsAll).reshape(BATCH_SIZE,1)
 
 
 
@@ -806,10 +867,10 @@ def localtrain():
         optimizer.step()
 
         batch_idx += 1
-    print('Policy Loss:{:.2f}'.format(np.mean(pi_losses)))
+        print('Policy Loss:{:.2f}'.format(np.mean(pi_losses)))
 
 
-    runningloss.append(np.mean(pi_losses))
+        runningloss.append(np.mean(pi_losses))
 
     clear_output(wait=True)
     pal = sns.dark_palette('purple',2)
@@ -830,7 +891,7 @@ def getRack1From(tile):
         if rack == tile:
             shape = game.player1.tileshape[index]
             color = game.player1.tilecolor[index]
-            game.player1.delRack(color, shape)
+            # game.player1.delRack(color, shape)
             return [color, shape, 0, 0]
 
 def getRack2From(tile):
@@ -838,14 +899,14 @@ def getRack2From(tile):
         if rack == tile:
             shape = game.player2.tileshape[index]
             color = game.player2.tilecolor[index]
-            game.player2.delRack(color, shape)
+            # game.player2.delRack(color, shape)
             return [color, shape, 0, 0]
 def getRack1FromShape(tile):
     for index,rack in enumerate(game.player1.tileshape):
         if rack==tile:
             shape=game.player1.tileshape[index]
             color=game.player1.tilecolor[index]
-            game.player1.delRack(color,shape)
+            # game.player1.delRack(color,shape)
             return [color,shape,0,0]
 
 def getRack2FromShape(tile):
@@ -853,38 +914,17 @@ def getRack2FromShape(tile):
         if rack == tile:
             shape = game.player2.tileshape[index]
             color = game.player2.tilecolor[index]
-            game.player2.delRack(color, shape)
+            # game.player2.delRack(color, shape)
             return [color, shape, 0, 0]
 
-def convertToRealTiles(boardPlay,player):
-    board=[]
+def convertToRealTiles(boardPlay):
 
+    for tiles in game.listValidMoves:
+        if boardPlay == tuple([[tile[0], tile[1]] for tile in tiles]):
+            return tiles
+    else:
+        return []
 
-    for tile in boardPlay:
-        if tile[0]!=0:
-            if player==1:
-                tilerack=getRack1From(tile[0])
-                tilerack[2] = tile[2]
-                tilerack[3] = tile[3]
-                board.append(tilerack)
-            else:
-                tilerack=getRack2From(tile[0])
-                tilerack[2] = tile[2]
-                tilerack[3] = tile[3]
-                board.append(tilerack)
-
-        if tile[1]!=0:
-            if player == 1:
-                tilerack = getRack1FromShape(tile[1])
-                tilerack[2] = tile[2]
-                tilerack[3] = tile[3]
-                board.append(tilerack)
-            else:
-                tilerack = getRack2FromShape(tile[1])
-                tilerack[2]=tile[2]
-                tilerack[3] = tile[3]
-                board.append(tilerack)
-    return board
 
 
 def deepGridCopy(gridnorme):
@@ -931,18 +971,23 @@ def local(num_game):
         # plt.xlim([0, 50])
         # plt.ylim([0, 50])
         n_steps = []
-        gameboard=[]
+        game = newGame.GameNumpy()
+        if h==0:
+            game.setActionprobtest()
+            setActionprod=game.actionprob
+        else:
+            game.actionprob=setActionprod
         gridnorme = np.zeros(shape=(26,54, 54))
-        game=newGame.GameNumpy()
+
 
 
         first = random.choice([True, False])
-        game.setActionprob()
+
 
         start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
         from matplotlib.offsetbox import OffsetImage, AnnotationBbox
         from cairosvg import svg2png
-        while game.player1.rackCount()!=0 and game.player2.rackCount()!=0 and game.bag.bagCount()!=0 and game.test3round():
+        while not ((game.player1.rackCount()==0  or (game.player2.rackCount()==0) and game.bag.bagCount()==0)) and game.test3round():
 
 
 
@@ -951,35 +996,7 @@ def local(num_game):
                 game.listValidMovePlayer1()
                 if len(game.listValidMoves) > 0:
                     gridnorme = convertToBoard(gridnorme, game.player1.getRack())
-                    actions = mcts.run(gridnorme, -1, 0, game)
-                    # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                    #                        dtype=torch.float32).cuda()
-                    childvisitcount = torch.tensor(
-                        [[actions.children[visit].visit_count] for visit in actions.children],
-                        dtype=torch.float32)
-                    childvisitcount /= torch.sum(childvisitcount)
-                    # game.setActionprob()
-                    boardPlay = game.actionprob[list(actions.children.keys())[
-                        torch.sort(childvisitcount, descending=True).indices[0]]]
 
-                    boardPlay = convertToRealTiles(boardPlay, 1)
-
-                    for tile in list(boardPlay):
-                        game.place(tile[0], tile[1], tile[2], tile[3])
-                        game.player1.delRack(tile[0], tile[1])
-                    game.player1.addTileToRack(game.bag)
-                    game.round = 0
-                else:
-                    game.player1.newRack(game.bag)
-                    game.round += 1
-
-                first = not first
-
-
-            else:
-                game.listValidMovePlayer2()
-                if len(game.listValidMoves) > 0:
-                    gridnorme = convertToBoard(gridnorme, game.player2.getRack())
                     actions = mcts.run(gridnorme, 1, 0, game)
                     # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                     #                        dtype=torch.float32).cuda()
@@ -988,46 +1005,109 @@ def local(num_game):
                         dtype=torch.float32)
                     childvisitcount /= torch.sum(childvisitcount)
                     # game.setActionprob()
-                    boardPlay = game.actionprob[
-                        list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]]
+                    actionPosition = list(actions.children.keys())[
+                        torch.sort(childvisitcount, descending=True).indices[0]]
+                    boardPlay = game.actionprob[actionPosition]
 
-                    boardPlay = convertToRealTiles(boardPlay, -1)
 
-                    for tile in list(boardPlay):
-                        game.place(tile[0], tile[1], tile[2], tile[3])
-                        game.player2.delRack(tile[0], tile[1])
-                    game.player2.addTileToRack(game.bag)
+
+
+                    boardPlay = convertToRealTiles(boardPlay)
+
+                    for tile in boardPlay:
+                        if game.place(tile[0], tile[1], tile[2], tile[3]):
+                            game.player1.delRack(tile[0], tile[1])
+                        else:
+                            game.round += 1
+
+                    if (game.player2.rackCount()+game.player1.rackCount()+game.bag.bagCount()+len(np.where(game.tilecolor!=0)[0])!=108):
+                        print('\rbaordplay1:{0}'.format(boardPlay))
+
+                    game.player1.addTileToRack(game.bag)
+
                     game.round = 0
+
+                    print('\rbag:{0}'.format(game.bag.bagCount()))
+                    print('\rbpordplay1:{0}'.format(boardPlay))
+
+                    game.player1.point += game.getpoint([[x[2], x[3]] for x in boardPlay])
+                    print('\rpoint:{0}'.format(game.player1.point))
+                    n_steps.append([deepGridCopy(gridnorme), actionPosition, 0])
+
                 else:
-                    game.player2.newRack(game.bag)
+                    game.player1.newRack(game.bag)
                     game.round += 1
+                    n_steps.append([deepGridCopy(gridnorme), 0, 0])
 
                 first = not first
 
-        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-        from cairosvg import svg2png
-        fig, ax = plt.subplots(figsize=(12, 8))
-        for x in range(108):
-            for y in range(108):
-                if game.tilecolor[x, y] != 0:
-                    svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + list(TileColor.keys())[
-                        game.tilecolor[x, y] - 1] + list(TileShape.keys())[game.tileshape[x, y] - 1] + ".svg",
-                            write_to="stinkbug.png")
-                    plt.xlim([0, 50])
-                    plt.ylim([0, 50])
-                    arr_img = plt.imread("stinkbug.png")
-                    half = cv2.resize(arr_img, (0, 0), fx=0.1, fy=0.1)
-                    im = OffsetImage(half)
 
-                    ab = AnnotationBbox(im, (25 + (x - 54) * 2.5, 25 + (y - 54) * 3.5), xycoords='data')
-                    ax.add_artist(ab)
+            else:
+                game.listValidMovePlayer2()
+                if len(game.listValidMoves) > 0:
+                    gridnorme = convertToBoard(gridnorme, game.player2.getRack())
 
-        # plt.draw()
-        # plt.pause(0.001)
-        plt.show(block=False)
+                    actions = mcts_iter.run(gridnorme, -1, 0, game)
+                    # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
+                    #                        dtype=torch.float32).cuda()
+                    childvisitcount = torch.tensor(
+                        [[actions.children[visit].visit_count] for visit in actions.children],
+                        dtype=torch.float32)
+                    childvisitcount /= torch.sum(childvisitcount)
+                    # game.setActionprob()
+                    actionPosition=list(actions.children.keys())[torch.sort(childvisitcount, descending=True).indices[0]]
+                    boardPlay = game.actionprob[actionPosition]
 
-        plt.interactive(False)
-        n_steps.append([deepGridCopy(gridnorme), list(np.zeros(len(game.actionprob))), 0])
+                    boardPlay = convertToRealTiles(boardPlay)
+
+                    for tile in boardPlay:
+                        if game.place(tile[0], tile[1], tile[2], tile[3]):
+                            game.player2.delRack(tile[0], tile[1])
+
+                        else:
+                            game.round += 1
+
+                    if (game.player2.rackCount()+game.player1.rackCount()+game.bag.bagCount()+len(np.where(game.tilecolor!=0)[0])!=108):
+                        print('\rbaordplay1:{0}'.format(boardPlay))
+                    game.player2.addTileToRack(game.bag)
+
+                    game.round = 0
+
+                    print('\rbag:{0}'.format(game.bag.bagCount()))
+                    print('\rbpordplay2:{0}'.format(boardPlay))
+                    game.player2.point += game.getpoint([[x[2], x[3]] for x in boardPlay])
+                    print('\rpoint:{0}'.format(game.player1.point))
+                    n_steps.append([deepGridCopy(gridnorme), actionPosition, 0])
+
+                else:
+                    game.player2.newRack(game.bag)
+                    game.round += 1
+                    n_steps.append([deepGridCopy(gridnorme), 0, 0])
+
+                first = not first
+
+        # from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+        # from cairosvg import svg2png
+        # fig, ax = plt.subplots(figsize=(12, 12))
+        # plt.xlim([-150, 150])
+        # plt.ylim([-150, 150])
+        # test=0
+        # for x in range(108):
+        #     for y in range(108):
+        #         if game.tilecolor[x, y] != 0:
+        #             svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + list(TileColor.keys())[
+        #                 game.tilecolor[x, y] - 1] + list(TileShape.keys())[game.tileshape[x, y] - 1] + ".svg",
+        #                     write_to="stinkbug.png")
+        #
+        #             arr_img = plt.imread("stinkbug.png")
+        #             half = cv2.resize(arr_img, (0, 0), fx=7 / 85, fy=6/ 85)
+        #             im = OffsetImage(half)
+        #
+        #             ab = AnnotationBbox(im, (54 + (x - 54) * 65 / 6, 54 + (y - 54) * 65 / 5), xycoords='data')
+        #             ax.add_artist(ab)
+        #
+        # plt.show(block=True)
+        # plt.interactive(False)
         end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
         total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
                                                                                                     '%H:%M:%S'))
@@ -1035,7 +1115,7 @@ def local(num_game):
 
 
 
-        if winner == 1:
+        if game.winner() == 1:
 
             reward=-1
             for rew in range(len(n_steps) - 1, 0, -1):
@@ -1056,7 +1136,6 @@ def local(num_game):
         memory.extend(n_steps)
 
         n_steps = []
-
 
 
         if h > 5:

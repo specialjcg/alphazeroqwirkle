@@ -47,8 +47,8 @@ class PlayerNumpy:
     def copy(self):
         player = PlayerNumpy()
 
-        player.tileshape=self.tileshape.copy()
-        player.tilecolor=self.tilecolor.copy()
+        player.tileshape=np.copy(self.tileshape)
+        player.tilecolor=np.copy(self.tilecolor)
         player.point = self.point
 
         return player
