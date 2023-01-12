@@ -2,8 +2,7 @@
 
 # Press Maj+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-from qwirckleAlphazero import local, loadcsv, loadbrain1, savebrain1, savebraindequeZero, savebraindeque, loadraindeque, \
-    loadbrain2
+from qwirckleAlphazero2 import local2, loadcsv, loadbrain1, savebrain1, savebraindequeZero, savebraindeque
 
 
 def print_hi(name):
@@ -13,10 +12,11 @@ def print_hi(name):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    loadbrain1()
-    loadbrain2()
-    #loadraindeque()
-    local(4)
+    # loadbrain1()
+    savebraindequeZero()
+    local2(50)
+    savebraindeque()
+
 
     # savebrain1()
     print_hi('PyCharm')

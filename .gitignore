@@ -18,3 +18,6 @@ src/main/resources/bledui/node_modules
 src/main/resources/bledui/dist
 src/main/resources/bledui/node/
 *.pth
+*.pkl
+/fashion_trainer*
+/fashion_trainer*/

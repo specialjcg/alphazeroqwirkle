@@ -27,7 +27,7 @@ class TestClassBinaireDemoInstance:
         assert tile.shape ==  0
 
     def test_tilenumpy(self):
-        tilecolor = np.ndarray(shape=(108,108), dtype=np.int32)
+        tilecolor = np.zeros(shape=(108,108), dtype=np.int32)
         print( tilecolor[54,54])
         assert tilecolor[54,54]==0
 
@@ -427,6 +427,7 @@ class TestClassBinaireDemoInstance:
         plt.show(block=True)
         plt.interactive(False)
         assert game.validBoard() == False
+
     def test_listvalide_movesnot_empty(self):
         game = GameBinaire()
         game.setActionprob()
@@ -468,6 +469,7 @@ class TestClassBinaireDemoInstance:
 
 
         assert len(game.listValidMoves)==10
+
     def test_listvalide_movesnot_empty(self):
         game = GameBinaire()
         game.setActionprob()
@@ -1247,4 +1249,76 @@ class TestClassBinaireDemoInstance:
 
         plt.show(block=True)
         plt.interactive(False)
+
+
+
+
+    def test_placetempory(self):
+        game = GameNumpy()
+        # Test placing a game piece at an empty position within the board bounds
+        assert (game.placetempory(1, 1, 53, 53), False)
+
+        # Test placing a game piece at a position that is outside the board bounds
+        assert (game.placetempory(1, 1, 54, 108), False)
+
+        # Test placing a game piece at a position that is already occupied
+        assert(game.placetempory(1, 1, 53, 53), False)
+
+        # Test placing a game piece with the same color but different shape as a game piece in the same row
+        assert(game.placetempory(1, 2, 53, 54), True)
+
+        # Test placing a game piece with the same shape but different color as a game piece in the same row
+        assert(game.placetempory(2, 1, 53, 55), True)
+
+        # Test placing a game piece with the same color and shape as a game piece in the same row
+        assert(game.placetempory(1, 1, 53, 56), False)
+
+        # Test placing a game piece with the same color but different shape as a game piece in the same column
+        assert(game.placetempory(1, 3, 54, 53), True)
+
+        # Test placing a game piece with the same shape but different color as a game piece in the same column
+        assert(game.placetempory(2, 1, 55, 53), True)
+
+        # Test placing a game piece with the same color and shape as a game piece in the same column
+        assert(game.placetempory(1, 1, 56, 53), False)
+
+    def test_placetempory2(self):
+        game = GameNumpy()
+        # Test placing a game piece at an empty position within the board bounds
+        assert game.placetempory(1, 1, 53, 53) == False
+
+        # Test placing a game piece at a position that is outside the board bounds
+        assert game.placetempory(1, 1, 54, 108) == False
+
+        # Test placing a game piece at a position that is already occupied
+        assert game.placetempory(1, 1, 53, 53) == False
+
+        # Test placing a game piece with the same color but different shape as a game piece in the same row
+        assert game.placetempory(1, 2, 53, 54) == True
+
+        # Test placing a game piece with the same shape but different color as a game piece in the same row
+        assert game.placetempory(2, 1, 53, 55) == False
+
+        # Test placing a game piece with the same color and shape as a game piece in the same row
+        assert game.placetempory(1, 1, 53, 56) == False
+
+        # Test placing a game piece with the same color but different shape as a game piece in the same column
+        assert game.placetempory(1, 3, 54, 53) == True
+
+        # Test placing a game piece with the same shape but different color as a game piece in the same column
+        assert game.placetempory(2, 1, 55, 53) == True
+
+        # Test placing a game piece with the same color and shape as a game piece in the same column
+        assert game.placetempory(1, 1, 56, 53) == False
+
+        # Test placing a game piece with the same color but different shape as a game piece in an adjacent position
+        assert game.placetempory(1, 1, 54, 54) == True
+
+        # Test placing a game piece with the same shape but different color as a game piece in an adjacent position
+        assert game.placetempory(1, 1, 55, 55) == True
+
+        # Test placing a game piece with the same color and shape as a game piece in an adjacent position
+        assert game.placetempory(1, 1, 56, 56) == False
+
+        # Test placing a game piece with the same color but different shape as
 

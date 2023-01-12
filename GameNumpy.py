@@ -1,24 +1,12 @@
-import datetime
 import itertools
-import timeit
-import csv
-from numpy import int8
 
-from Bag import deepBoardCopy
-from BagBinaire import BagBinaire
-from BagNumpy import BagNumpy
-from Coordinate import Coordinate
-from PlayerBinaire import PlayerBinaire
 import numpy as np
-import copy
 
+from BagNumpy import BagNumpy
 from PlayerNumpy import PlayerNumpy
-from Tile import Tile
-from TileBinaire import TileBinaire
 from TileColor import TileColor
-from TileOnBoad import TileOnBoard
 from TileShape import TileShape
-
+from collections import defaultdict
 
 class GameNumpy:
     def __init__(self):
@@ -42,7 +30,7 @@ class GameNumpy:
             sameshape = True
             samecolor = True
             pos = 1
-            while self.tilecolor[x, y + pos] != 0:
+            while self.tilecolor[x, y + pos] != 0 and y+pos<108:
                 if self.tilecolor[x, y + pos] == color and self.tileshape[x, y + pos] == shape:
                     return False
                 samecolor = self.tilecolor[x, y + pos] == color and samecolor
@@ -53,7 +41,7 @@ class GameNumpy:
             sameshape = True
             samecolor = True
             pos = 1
-            while self.tilecolor[x, y - pos] != 0:
+            while self.tilecolor[x, y - pos] != 0 and y-pos>0:
                 if self.tilecolor[x, y - pos] == color and self.tileshape[x, y - pos] == shape:
                     return False
                 samecolor = self.tilecolor[x, y - pos] == color and samecolor
@@ -64,7 +52,7 @@ class GameNumpy:
                 return False
             sameshape = True
             samecolor = True
-            while self.tilecolor[x + pos, y] != 0:
+            while self.tilecolor[x + pos, y] != 0 and x+pos>108:
                 if self.tilecolor[x + pos, y] == color and self.tileshape[x + pos, y] == shape:
                     return False
                 samecolor = self.tilecolor[x + pos, y] == color and samecolor
@@ -75,7 +63,7 @@ class GameNumpy:
                 return False
             sameshape = True
             samecolor = True
-            while self.tilecolor[x - pos, y] != 0:
+            while self.tilecolor[x - pos, y] != 0 and x-pos>0:
                 if self.tilecolor[x - pos, y] == color and self.tileshape[x - pos, y] == shape:
                     return False
                 samecolor = self.tilecolor[x - pos, y] == color and samecolor
@@ -90,62 +78,127 @@ class GameNumpy:
 
         return False
 
+
+
+    # def placetempory(self, color, shape, posx, posy):
+    #     x = posx + 54
+    #     y = posy + 54
+    #     if x < 107 and y < 107:
+    #         if self.tilecolortempory[x, y] == 0:
+    #
+    #             sameshape = True
+    #             samecolor = True
+    #             pos = 1
+    #             while self.tilecolortempory[x, y + pos] != 0 and y + pos < 107:
+    #                 if self.tilecolortempory[x, y + pos] == color and self.tileshapetempory[x, y + pos] == shape:
+    #                     return False
+    #                 samecolor = self.tilecolortempory[x, y + pos] == color and samecolor
+    #                 sameshape = self.tileshapetempory[x, y + pos] == shape and sameshape
+    #                 pos += 1
+    #             if samecolor == False and sameshape == False:
+    #                 return False
+    #             sameshape = True
+    #             samecolor = True
+    #             pos = 1
+    #             while self.tilecolortempory[x, y - pos] != 0 and y - pos > 0:
+    #                 if self.tilecolortempory[x, y - pos] == color and self.tileshapetempory[x, y - pos] == shape:
+    #                     return False
+    #                 samecolor = self.tilecolortempory[x, y - pos] == color and samecolor
+    #                 sameshape = self.tileshapetempory[x, y - pos] == shape and sameshape
+    #                 pos += 1
+    #             pos = 1
+    #             if samecolor == False and sameshape == False:
+    #                 return False
+    #             sameshape = True
+    #             samecolor = True
+    #             while self.tilecolortempory[x + pos, y] != 0 and x + pos < 107:
+    #                 if self.tilecolortempory[x + pos, y] == color and self.tileshapetempory[x + pos, y] == shape:
+    #                     return False
+    #                 samecolor = self.tilecolortempory[x + pos, y] == color and samecolor
+    #                 sameshape = self.tileshapetempory[x + pos, y] == shape and sameshape
+    #                 pos += 1
+    #             pos = 1
+    #             if samecolor == False and sameshape == False:
+    #                 return False
+    #             sameshape = True
+    #             samecolor = True
+    #             while self.tilecolortempory[x - pos, y] != 0 and x - pos > 0:
+    #                 if self.tilecolortempory[x - pos, y] == color and self.tileshapetempory[x - pos, y] == shape:
+    #                     return False
+    #                 samecolor = self.tilecolortempory[x - pos, y] == color and samecolor
+    #                 sameshape = self.tileshapetempory[x - pos, y] == shape and sameshape
+    #                 pos += 1
+    #             if samecolor == False and sameshape == False:
+    #                 return False
+    #
+    #             self.tilecolortempory[x, y] = color
+    #             self.tileshapetempory[x, y] = shape
+    #             return True
+    #
+    #         return False
+    #     return False
+
+
+
     def placetempory(self, color, shape, posx, posy):
         x = posx + 54
         y = posy + 54
-        if x < 107 and y < 107:
-            if self.tilecolortempory[x, y] == 0:
-
-                sameshape = True
-                samecolor = True
-                pos = 1
-                while self.tilecolortempory[x, y + pos] != 0 and y + pos < 107:
-                    if self.tilecolortempory[x, y + pos] == color and self.tileshapetempory[x, y + pos] == shape:
-                        return False
-                    samecolor = self.tilecolortempory[x, y + pos] == color and samecolor
-                    sameshape = self.tileshapetempory[x, y + pos] == shape and sameshape
-                    pos += 1
-                if samecolor == False and sameshape == False:
-                    return False
-                sameshape = True
-                samecolor = True
-                pos = 1
-                while self.tilecolortempory[x, y - pos] != 0 and y - pos > 0:
-                    if self.tilecolortempory[x, y - pos] == color and self.tileshapetempory[x, y - pos] == shape:
-                        return False
-                    samecolor = self.tilecolortempory[x, y - pos] == color and samecolor
-                    sameshape = self.tileshapetempory[x, y - pos] == shape and sameshape
-                    pos += 1
-                pos = 1
-                if samecolor == False and sameshape == False:
-                    return False
-                sameshape = True
-                samecolor = True
-                while self.tilecolortempory[x + pos, y] != 0 and x + pos < 107:
-                    if self.tilecolortempory[x + pos, y] == color and self.tileshapetempory[x + pos, y] == shape:
-                        return False
-                    samecolor = self.tilecolortempory[x + pos, y] == color and samecolor
-                    sameshape = self.tileshapetempory[x + pos, y] == shape and sameshape
-                    pos += 1
-                pos = 1
-                if samecolor == False and sameshape == False:
-                    return False
-                sameshape = True
-                samecolor = True
-                while self.tilecolortempory[x - pos, y] != 0 and x - pos > 0:
-                    if self.tilecolortempory[x - pos, y] == color and self.tileshapetempory[x - pos, y] == shape:
-                        return False
-                    samecolor = self.tilecolortempory[x - pos, y] == color and samecolor
-                    sameshape = self.tileshapetempory[x - pos, y] == shape and sameshape
-                    pos += 1
-                if samecolor == False and sameshape == False:
-                    return False
-
-                self.tilecolortempory[x, y] = color
-                self.tileshapetempory[x, y] = shape
-                return True
-
+        if x < 0 or x >= 107 or y < 0 or y >= 107:
             return False
+
+        # Return False if the position is already occupied
+        if self.tilecolortempory[x, y] != 0:
+            return False
+
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+        for dx, dy in directions:
+            sameshape = True
+            samecolor = True
+            pos = 1
+            while self.tilecolortempory[
+                x + dx * pos, y + dy * pos] != 0 and 0 < x + dx * pos < 107 and 0 < y + dy * pos < 107:
+                color_match = self.tilecolortempory[x + dx * pos, y + dy * pos] == color
+                shape_match = self.tileshapetempory[x + dx * pos, y + dy * pos] == shape
+
+                if color_match and shape_match:
+                    return False
+
+                samecolor = samecolor and color_match
+                sameshape = sameshape and shape_match
+                pos += 1
+
+            if not samecolor and not sameshape:
+                return False
+
+        self.tilecolortempory[x, y] = color
+        self.tileshapetempory[x, y] = shape
+        return True
+
+
+    # def placetempory(self, color, shape, posx, posy):
+    #     x = posx + 54
+    #     y = posy + 54
+    #
+    #     # Return False if the position is outside the bounds of the board
+    #     if x < 0 or x >= 107 or y < 0 or y >= 107:
+    #         return False
+    #
+    #     # Return False if the position is already occupied
+    #     if self.tilecolortempory[x, y] != 0:
+    #         return False
+    #
+    #     # Check if the game piece has the same color or shape as a game piece in the same row or column
+    #     for i in range(107):
+    #         if (self.tilecolortempory[x, i] == color or self.tileshapetempory[x, i] == shape) and (i != y):
+    #             return False
+    #         if (self.tilecolortempory[i, y] == color or self.tileshapetempory[i, y] == shape) and (i != x):
+    #             return False
+    #
+    #     # Place the game piece
+    #     self.tilecolortempory[x, y] = color
+    #     self.tileshapetempory[x, y] = shape
+    #     return True
 
     def listValidMovePlayer2(self):
         self.listValidMoves = []
@@ -182,6 +235,7 @@ class GameNumpy:
                     self.listValidMoves.append(rackValidMove)
                     self.listValidMoves = self.unique(self.listValidMoves)
                 i += 1
+        self.listValidMoves=sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
 
     def testplaceTile(self, permutation, posx, posy, sensx, sensy):
         self.deepBoardbinarryCopy()
@@ -201,42 +255,112 @@ class GameNumpy:
                 break
         return isvalidTempory
 
+    def permute(self,indices, start, end, permutations):
+        if start == end:
+            permutations.append(indices.copy())
+        else:
+            for i in range(start, end):
+                indices[start], indices[i] = indices[i], indices[start]
+                self.permute(indices, start + 1, end, permutations)
+                indices[start], indices[i] = indices[i], indices[start]
+
     def permutationFromPositionTiletileleft(self, permutation, posxtile, posytile):
-        for j in range(0, 4):
-            if j == 0:
-                posx = posxtile + 1
-                posy = posytile
-            if j == 1:
-                posx = posxtile - 1
-                posy = posytile
-            if j == 2:
-                posx = posxtile
-                posy = posytile - 1
-            if j == 3:
-                posx = posxtile
-                posy = posytile + 1
+        permutations = []
+        indices = list(range(len(permutation)))
+        self.permute(indices, 0, len(indices), permutations)
+        # for indices in permutations:
+        #     positions = [(posxtile + 1, posytile), (posxtile - 1, posytile), (posxtile, posytile - 1),
+        #                  (posxtile, posytile + 1)]
+        #     for posx, posy in positions:
+        #         if self.tilecolor[posx, posy] == 0:
+        #             for indx in range(0, 4):
+        #                 sensx, sensy = [(1, 0), (-1, 0), (0, -1), (0, 1)][indx]
+        #                 permuted_permutation = [permutation[i] for i in indices]
+        #                 if self.testplaceTile(permuted_permutation, posx, posy, sensx, sensy):
+        #                     rackValidMove = [[tile[0], tile[1], posx + sensx * index, posy + sensy * index] for
+        #                                      index, tile
+        #                                      in
+        #                                      enumerate(permuted_permutation)]
+        #                     if rackValidMove not in self.listValidMoves:
+        #                         self.listValidMoves.append(rackValidMove)
 
-            if self.tilecolor[posx, posy] == 0:
-                for indx in range(0, 4):
-                    if indx == 0:
-                        sensx = -1
-                        sensy = 0
-                    if indx == 1:
-                        sensx = 1
-                        sensy = 0
-                    if indx == 2:
-                        sensx = 0
-                        sensy = -1
-                    if indx == 3:
-                        sensx = 0
-                        sensy = 1
+        # Get all permutations of tiles in the player's rack
+        # Get all permutations of tiles in the player's rack
+        for indices in permutations:
+            # Create a list of positions surrounding the current position on the board
+            positions = [
+                (posxtile + 1, posytile),
+                (posxtile - 1, posytile),
+                (posxtile, posytile - 1),
+                (posxtile, posytile + 1)
+            ]
 
-                    if self.testplaceTile(permutation, posx, posy, sensx, sensy):
-                        rackValidMove = [[tile[0], tile[1], posx + sensx * index, posy + sensy * index] for index, tile
-                                         in
-                                         enumerate(permutation)]
-                        self.listValidMoves.append(rackValidMove)
-                        self.listValidMoves = self.unique(self.listValidMoves)
+            # Loop through each position
+            for posx, posy in positions:
+                # Skip this position if the tile is not empty
+                if self.tilecolor[posx, posy] != 0:
+                    continue
+
+                # Loop through each orientation
+                for indx in range(4):
+                    sensx, sensy = [(1, 0), (-1, 0), (0, -1), (0, 1)][indx]
+
+                    # Get the permuted tiles in the current orientation
+                    permuted_permutation = [permutation[i] for i in indices]
+
+                    # Check if the permuted tiles can be placed at this position and orientation
+                    if self.testplaceTile(permuted_permutation, posx, posy, sensx, sensy):
+                        # Create a list of valid moves for this placement
+                        rackValidMove = [
+                            [tile[0], tile[1], posx + sensx * index, posy + sensy * index]
+                            for index, tile in enumerate(permuted_permutation)
+                        ]
+
+                        # Add the valid moves to the list if they are not already present
+                        if rackValidMove not in self.listValidMoves:
+                            self.listValidMoves.append(rackValidMove)
+
+        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
+
+    # def permutationFromPositionTiletileleft(self, permutation, posxtile, posytile):
+    #     for j in range(0, 4):
+    #         if j == 0:
+    #             posx = posxtile + 1
+    #             posy = posytile
+    #         if j == 1:
+    #             posx = posxtile - 1
+    #             posy = posytile
+    #         if j == 2:
+    #             posx = posxtile
+    #             posy = posytile - 1
+    #         if j == 3:
+    #             posx = posxtile
+    #             posy = posytile + 1
+    #
+    #         if self.tilecolor[posx, posy] == 0:
+    #             for indx in range(0, 4):
+    #                 if indx == 0:
+    #                     sensx = -1
+    #                     sensy = 0
+    #                 if indx == 1:
+    #                     sensx = 1
+    #                     sensy = 0
+    #                 if indx == 2:
+    #                     sensx = 0
+    #                     sensy = -1
+    #                 if indx == 3:
+    #                     sensx = 0
+    #                     sensy = 1
+    #
+    #                 if self.testplaceTile(permutation, posx, posy, sensx, sensy):
+    #                     rackValidMove = [[tile[0], tile[1], posx + sensx * index, posy + sensy * index] for index, tile
+    #                                      in
+    #                                      enumerate(permutation)]
+    #                     self.listValidMoves.append(rackValidMove)
+    #                     self.listValidMoves = self.unique(self.listValidMoves)
+    #         self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
+
+
 
     def listValidMovePlayer1(self):
         self.listValidMoves = []
@@ -273,6 +397,7 @@ class GameNumpy:
                     self.listValidMoves.append(rackValidMove)
                     self.listValidMoves = self.unique(self.listValidMoves)
                 i += 1
+        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
 
     def unique(self, list1):
 

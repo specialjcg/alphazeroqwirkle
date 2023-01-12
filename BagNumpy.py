@@ -1,8 +1,7 @@
+import random
+
 import numpy as np
 
-from Coordinate import Coordinate
-from TileBinaire import TileBinaire
-import random
 
 class BagNumpy:
 

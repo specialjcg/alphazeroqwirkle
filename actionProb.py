@@ -2,10 +2,8 @@
 
 # Press Maj+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-from qwirckleAlphazero import local, loadcsv, loadbrain1, savebrain1, savebraindequeZero, savebraindeque, loadraindeque, \
-    loadbrain2
-
-
+import GameNumpy as newGame
+import pickle
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
     print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
@@ -13,12 +11,14 @@ def print_hi(name):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    loadbrain1()
-    loadbrain2()
-    #loadraindeque()
-    local(4)
 
-    # savebrain1()
-    print_hi('PyCharm')
+    game=newGame.GameNumpy()
+    game.setActionprobtest()
+
+
+
+
+    pickle.dump(game.actionprob, open('gameActionProb.pkl', 'wb'))
+    print("=> saving gameActionProb... ")
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

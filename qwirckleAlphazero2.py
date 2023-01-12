@@ -5,12 +5,10 @@ import os
 import pickle
 from collections import namedtuple, deque
 
-import numba
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from numba import njit, jit
 from torch.cpu.amp import autocast
 from torch.cuda.amp import GradScaler
 
@@ -32,20 +30,16 @@ import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
+
 def boardPlayToGridNorm(board, actions, playerval):
     nextBoard = np.copy(board)
-    actions_array = np.array(actions)
-    nextBoard[actions_array[:, 0]-1, actions_array[:, 2]+22, actions_array[:, 3]+22] = playerval
-    nextBoard[5+actions_array[:, 1], actions_array[:, 2]+22, actions_array[:, 3]+22] = playerval
+    i=0
+    for rack in actions:
+        print(rack)
+        nextBoard[rack[0]-1][rack[2]+22][rack[3]+22]=playerval
+        nextBoard[5+rack[1]][rack[2]+22][rack[3]+22]=playerval
+        i+=1
     return nextBoard
-
-# def boardPlayToGridNorm(board, actions, playerval):
-#     nextBoard = np.copy(board)
-#     for rack in actions:
-#         print(rack)
-#         nextBoard[rack[0]-1][rack[2]+22][rack[3]+22]=playerval
-#         nextBoard[5+rack[1]][rack[2]+22][rack[3]+22]=playerval
-#     return nextBoard
 
 def gridNormtoRack(gridnorme):
     nextBoard = np.copy(gridnorme)
@@ -73,80 +67,49 @@ def gridNormToBoardPlay(gridnorme):
     return board
 
 
-# def get_next_state(board, player, action,game):
-#     nextState=list(game.actionprob[action])
-#
-#     for tiles in game.listValidMoves:
-#         if all(abs(x) < 22 and abs(y) < 22 for x, y in [(tile[2], tile[3]) for tile in tiles]):
-#             if nextState == [[tile[0], tile[1]] for tile in tiles]:
-#                 return boardPlayToGridNorm(board, tiles, 1), -player, tiles
-#
-#     return board, -player,[]
 
-
-
-
-def get_next_state(board, player, action, game):
-    nextState = list(game.actionprob[action])
+def get_next_state(board, player, action,game):
+    nextState=list(game.actionprob[action])
 
     for tiles in game.listValidMoves:
-        if all(abs(x) < 22 and abs(y) < 22 for x, y in [(tile[2], tile[3]) for tile in tiles]):
+        if all(abs(tile[2]) < 22 for tile in tiles) and all(abs(tile[3]) < 22 for tile in tiles):
             if nextState == [[tile[0], tile[1]] for tile in tiles]:
                 return boardPlayToGridNorm(board, tiles, 1), -player, tiles
-
-    return board, -player, []
-
-# for tiles in game.listValidMoves:
-#     tile_positions = [(tile[2], tile[3]) for tile in tiles]
-#     if any(abs(x) >= 22 or abs(y) >= 22 for x, y in tile_positions):
-#         continue
-#     if nextState == [(tile[0], tile[1]) for tile in tiles]:
-#         return boardPlayToGridNorm(board, tiles, 1), -player, tiles
-
- # Return the new game, but
+    # Return the new game, but
     # change the perspective of the game with negative
+    return board, -player,[]
 
 
-# def findindexinActionprob(game):
-#     valid_moves = np.zeros(len(game.actionprob))
-#     for i in game.listValidMoves:
-#         j=0
-#         for element in game.actionprob:
-#             if len(i)==len(element):
-#                 if (element[0][0] == i[0][0] or element[0][1] == i[0][1]):
-#                     for action in element:
-#
-#                         if action[2]==i[0][2] and action[3]==i[0][3]:
-#                             valid_moves[j] = 1
-#                         else:
-#                             valid_moves[j] = 0
-#                             break
-#
-#                 else:
-#                     valid_moves[j] = 0
-#             j+=1
-#     return valid_moves
+
+
+
+
 def findindexinActionprob(game):
     valid_moves = np.zeros(len(game.actionprob))
-    for i, element in zip(game.listValidMoves, game.actionprob):
-        if len(i) == len(element):
-            if element[0][0] == i[0][0] or element[0][1] == i[0][1]:
-                for action in element:
-                    valid_moves[j] = 1 if action[2] == i[0][2] and action[3] == i[0][3] else 0
-        else:
-            valid_moves[j] = 0
-        j += 1
-    return valid_moves
+    for i in game.listValidMoves:
+        j=0
+        for element in game.actionprob:
+            if len(i)==len(element):
+                if (element[0][0] == i[0][0] or element[0][1] == i[0][1]):
+                    for action in element:
 
+                        if action[2]==i[0][2] and action[3]==i[0][3]:
+                            valid_moves[j] = 1
+                        else:
+                            valid_moves[j] = 0
+                            break
+
+                else:
+                    valid_moves[j] = 0
+            j+=1
+    return valid_moves
 
 def findindexinActionprobnumpy(game):
     valid_moves = np.zeros(23436)
     for i in game.listValidMoves:
         valprob=[]
-        # for testnumpy in i:
-        #     valprob.append([testnumpy[0],testnumpy[1]])
-        valprob=[[testnumpy[0],testnumpy[1]] for testnumpy in i]
-
+        for testnumpy in i:
+            valprob.append([testnumpy[0],testnumpy[1]])
 
 
 
@@ -313,7 +276,7 @@ class MCTS:
           action_probs, value = cnn(statesignal)
           gamesimul=game.__copy__()
 
-          # gamesimul.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
+          gamesimul.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
           valid_moves = get_valid_moves(gamesimul)
 
           #action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
@@ -331,10 +294,7 @@ class MCTS:
 
 
       #for i in range(777):
-
-              i=0
-              while i<600:
-                  i+=1
+              for i in range(600):
 
                   node = root.copy()
                   search_path = [node]
@@ -606,8 +566,8 @@ class OutBlock(nn.Module):
         super(OutBlock, self).__init__()
 
 
-        self.fc1 = nn.Linear(self.shape1,1024)
-        self.fc2 = nn.Linear(1024, 1)
+        self.fc1 = nn.Linear(self.shape1,512)
+        self.fc2 = nn.Linear(512, 1)
         self.drp = nn.Dropout(0.3)
 
         self.fc = nn.Linear(self.shape1, self.shape1)
@@ -653,24 +613,18 @@ class ConnectNet(nn.Module):
         :param m: Layer to initialize
         :return: None
         """
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-        # if isinstance(self.conv.conv1, nn.Conv2d):
-        #     torch.nn.init.xavier_uniform_(self.conv.conv1.weight)
-        #     torch.nn.init.zeros_(self.conv.conv1.bias)
-        # if isinstance(self.conv.bn1, nn.BatchNorm2d):
-        #     torch.nn.init.normal_(self.conv.bn1.weight.data, mean=1, std=0.02)
-        #     torch.nn.init.constant_(self.conv.bn1.bias.data, 0)
-        # if isinstance(self.conv.conv2, nn.Conv2d):
-        #     torch.nn.init.xavier_uniform_(self.conv.conv2.weight)
-        #     torch.nn.init.zeros_(self.conv.conv2.bias)
-        # if isinstance(self.conv.bn2, nn.BatchNorm2d):
-        #     torch.nn.init.normal_(self.conv.bn2.weight.data, mean=1, std=0.02)
-        #     torch.nn.init.constant_(self.conv.bn2.bias.data, 0)
+        if isinstance(self.conv.conv1, nn.Conv2d):
+            torch.nn.init.xavier_uniform_(self.conv.conv1.weight)
+            torch.nn.init.zeros_(self.conv.conv1.bias)
+        if isinstance(self.conv.bn1, nn.BatchNorm2d):
+            torch.nn.init.normal_(self.conv.bn1.weight.data, mean=1, std=0.02)
+            torch.nn.init.constant_(self.conv.bn1.bias.data, 0)
+        if isinstance(self.conv.conv2, nn.Conv2d):
+            torch.nn.init.xavier_uniform_(self.conv.conv2.weight)
+            torch.nn.init.zeros_(self.conv.conv2.bias)
+        if isinstance(self.conv.bn2, nn.BatchNorm2d):
+            torch.nn.init.normal_(self.conv.bn2.weight.data, mean=1, std=0.02)
+            torch.nn.init.constant_(self.conv.bn2.bias.data, 0)
         # if isinstance(self.conv.conv3, nn.Conv2d):
         #     torch.nn.init.xavier_uniform_(self.conv.conv3.weight)
         #     torch.nn.init.zeros_(self.conv.conv3.bias)
@@ -804,8 +758,7 @@ class AlphaLoss(torch.nn.Module):
         value_error = (value - y_value) ** 2
         policy_error = torch.sum((-policy *
                                   (1e-8 + y_policy.float()).float().log()), 1)
-        # total_error = (value_error.view(-1).float() + policy_error).mean()
-        total_error = (value_error+policy_error.unsqueeze(1)).mean()
+        total_error = (value_error.view(-1).float() + policy_error).mean()
         return total_error
 
 
@@ -813,7 +766,7 @@ class AlphaLoss(torch.nn.Module):
 
 global moyenneWinBlue,BATCH_SIZE,pi_losses,v_losses,acurracy,runningloss
 alphaloss = AlphaLoss()
-BATCH_SIZE=32
+BATCH_SIZE=16
 import seaborn as sns
 import matplotlib.pyplot as plt
 sns.set()
@@ -828,48 +781,34 @@ def savebraindequeZero():
     import pickle
     global memory
     memory = []
-    pickle.dump(memory, open('buffer.pkl', 'wb'))
+    pickle.dump(memory, open('buffer2.pkl', 'wb'))
     print("=> saving memory zero... ")
 
 
 def savebraindeque():
     import pickle
     global memory
-    end_time = datetime.datetime.now().isoformat(' ')
-    with open('buffer'+ end_time + '.pkl', 'wb') as f:
-        pickle.dump(memory,f )
-    f.close()
+    tmp = pickle.load(open('buffer2.pkl', 'rb'))
+    memory.extend(tmp)
+    pickle.dump(memory, open('buffer2.pkl', 'wb'))
     print("=> saving brainqueue... ")
 
 def loadraindeque():
     import pickle
     global memory
-    memory=[]
-    import os, glob
-    for filename in glob.glob('buffer*.pkl'):
-        with open(os.path.join(os.getcwd(), filename), 'rb') as f:
-            tmp = pickle.load(f)
-            memory.extend(tmp)
-    f.close()
+    memory= pickle.load(open('buffer2.pkl', 'rb'))
 
     print("=> saving brainqueue... ")
 
-def loadraindeque2():
-    import pickle
-    global memory
-    tmp= pickle.load(open('buffer2.pkl', 'rb'))
-    memory = pickle.load(open('buffer.pkl', 'rb'))
-    memory.extend(tmp)
-    print("=> saving brainqueue2... ")
 
 def localtrain():
   global maxWin,moyenneWinBlue,BATCH_SIZE,pi_losses,v_losses,acurracy,runningloss
+  optimizer = torch.optim.Adam(cnn.parameters(), lr=0.0001)
 
 
-  cnn = ConnectNet()
-  cnn.init_weights()
-  optimizer = torch.optim.SGD(cnn.parameters(), lr=0.05)
-  # optimizer = torch.optim.Adam(cnn.parameters(), lr=0.00001)
+
+
+
   batch_idx = 0
   pi_losses = []
   v_losses = []
@@ -912,16 +851,16 @@ def localtrain():
 
 
       # set_to_none=True here can modestly improve performance
-    # with torch.autocast(device_type='cpu', dtype=torch.bfloat16):
-    out_pi, out_v = cnn.forward(statesignal)
-    total_error = alphaloss(out_v, target_vs, out_pi, target_pis)
+    with torch.autocast(device_type='cpu', dtype=torch.bfloat16):
+        out_pi, out_v = cnn.forward(statesignal)
+        total_error = alphaloss(out_v, target_vs, out_pi, target_pis)
 
-    optimizer.zero_grad()
+    pi_losses.append(float(total_error))
     total_error.backward()
 
     optimizer.step()
     pi_losses.append(float(total_error))
-
+    optimizer.zero_grad()
 
     batch_idx += 1
     print('Policy Loss:{:.2f}'.format(np.mean(pi_losses)))
@@ -942,75 +881,7 @@ def localtrain():
   plt.show()
   savebraintrain()
   savebrain1()
-def train_one_epoch(epoch_index, tb_writer,optimizer):
 
-    batch_idx = 0
-    pi_losses = []
-    v_losses = []
-    running_loss = 0.
-    last_loss = 0.
-    # training_loader = torch.utils.data.DataSet(memory, batch_size=4, shuffle=True, num_workers=2)
-    # Here, we use enumerate(training_loader) instead of
-    # iter(training_loader) so that we can track the batch
-    # index and do some intra-epoch reporting
-    sample_ids = np.random.randint(0, len(memory), BATCH_SIZE)
-    boards, pis, vs = list(zip(*[(memory[i]) for i in sample_ids]))
-    for i in range (len(boards)):
-        # Every data instance is an input + label pair
-        # boards, pis, vs = data
-
-        # boards = torch.FloatTensor(np.stack(boards,axis=0))
-        # boards = torch.FloatTensor(boards).cuda()
-
-        boardsAll = []
-        for board in boards:
-            last_signal = torch.tensor(board, dtype=torch.float32)
-            # last_signal = torch.FloatTensor(gridAll).cuda()
-
-            boardsAll.append(last_signal.reshape(26, 54, 54))
-        pisAll = []
-        for policy in pis:
-            # policy = torch.tensor(policy, dtype=torch.float32).cuda()
-
-            valid_moves = np.zeros(23436)
-            valid_moves[policy] = 1
-            policy = torch.tensor(valid_moves, dtype=torch.float32)
-            pisAll.append(policy)
-        vsAll = []
-        for value in vs:
-            value = torch.tensor(value, dtype=torch.float32)
-            # value = torch.tensor(value, dtype=torch.float32).cuda()
-            vsAll.append(value)
-
-        statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll])
-        # statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll]).cuda()
-
-        # target_pis =torch.FloatTensor([t.cpu().numpy() for t in pisAll]).cuda()
-        target_pis = torch.FloatTensor([t.detach().cpu().numpy() for t in pisAll])
-        # target_vs = torch.FloatTensor(vsAll).cuda().reshape(BATCH_SIZE,1)
-        target_vs = torch.FloatTensor(vsAll).reshape(BATCH_SIZE, 1)
-        # Zero your gradients for every batch!
-        optimizer.zero_grad()
-
-        # Make predictions for this batch
-        out_pi, out_v = cnn.forward(statesignal)
-        total_error = alphaloss(out_v, target_vs, out_pi, target_pis)
-        total_error.backward()
-        pi_losses.append(float(total_error))
-        # Adjust learning weights
-        optimizer.step()
-        print('Policy Loss:{:.2f}'.format(np.mean(pi_losses)))
-
-        # Gather data and report
-        running_loss += total_error.item()
-        if i % 32 == 31:
-            last_loss = running_loss / 8 # loss per batch
-            print('  batch {} loss: {}'.format(i + 1, last_loss))
-            tb_x = epoch_index * len(boards) + i + 1
-            tb_writer.add_scalar('Loss/train', last_loss, tb_x)
-            running_loss = 0.
-
-    return last_loss
 
 def getRack1From(tile):
     for index, rack in enumerate(game.player1.tilecolor):
@@ -1064,9 +935,21 @@ def deepGridCopy(gridnorme):
 
 
 
+def removeDoublon(mylist):
 
 
-def local(num_game):
+    duplicates_removed = []
+
+    duplicates_removed.append(mylist[0])
+
+    for i in range(1, len(mylist)):
+
+        if (mylist[i] != mylist[i - 1]):
+            duplicates_removed.append(mylist[i])
+
+    return duplicates_removed
+
+def local2(num_game):
 
 
     global gridnorme, game, epoch, memory, history, n_steps, maxWin
@@ -1214,139 +1097,12 @@ def local(num_game):
         memory.extend(n_steps)
 
         n_steps = []
-    savebraindeque()
 
 
-def localevaluation(num_game):
-    global gridnorme, game, epoch, memory, history, n_steps, maxWin
-
-    import datetime
-    import pickle
-    maxWin = [0, 0]
-    for h in range(0, num_game):
-        n_steps = []
-        game = newGame.GameNumpy()
-        # game.setActionprobtest()
-        game.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
-        gridnorme = np.zeros(shape=(26, 54, 54))
-
-        first = random.choice([True, False])
-
-        start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
-        while not ((game.player1.rackCount() == 0 or (
-                game.player2.rackCount() == 0) and game.bag.bagCount() == 0)) and game.test3round():
-
-            if first:
-                game.listValidMovePlayer1()
-                if len(game.listValidMoves) > 0:
-                    gridnorme = convertToBoard(gridnorme, game.player1.getRack())
-
-                    actions = mcts.run(gridnorme, 1, 0, game)
-                    # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                    #                        dtype=torch.float32).cuda()
-                    childvisitcount = torch.tensor(
-                        [[actions.children[visit].visit_count] for visit in actions.children],
-                        dtype=torch.float32)
-                    childvisitcount /= torch.sum(childvisitcount)
-                    # game.setActionprob()
-                    actionPosition = list(actions.children.keys())[
-                        torch.sort(childvisitcount, descending=True).indices[0]]
-                    boardPlay = game.actionprob[actionPosition]
-
-                    boardPlay = convertToRealTiles(boardPlay)
-
-                    for tile in boardPlay:
-                        if game.place(tile[0], tile[1], tile[2], tile[3]):
-                            game.player1.delRack(tile[0], tile[1])
-                        else:
-                            game.round += 1
-
-                    if (game.player2.rackCount() + game.player1.rackCount() + game.bag.bagCount() + len(
-                            np.where(game.tilecolor != 0)[0]) != 108):
-                        print('\rbaordplay1:{0}'.format(boardPlay))
-
-                    game.player1.addTileToRack(game.bag)
-
-                    game.round = 0
-
-                    print('\rbag:{0}'.format(game.bag.bagCount()))
-                    print('\rbpordplay1:{0}'.format(boardPlay))
-
-                    game.player1.point += game.getpoint([[x[2], x[3]] for x in boardPlay])
-                    print('\rpoint:{0}'.format(game.player1.point))
-
-                else:
-                    game.player1.newRack(game.bag)
-                    game.round += 1
-
-                first = not first
-
-
-            else:
-                game.listValidMovePlayer2()
-                if len(game.listValidMoves) > 0:
-                    gridnorme = convertToBoard(gridnorme, game.player2.getRack())
-
-                    actions = mcts_iter.run(gridnorme, -1, 0, game)
-                    # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
-                    #                        dtype=torch.float32).cuda()
-                    childvisitcount = torch.tensor(
-                        [[actions.children[visit].visit_count] for visit in actions.children],
-                        dtype=torch.float32)
-                    childvisitcount /= torch.sum(childvisitcount)
-                    # game.setActionprob()
-                    actionPosition = list(actions.children.keys())[
-                        torch.sort(childvisitcount, descending=True).indices[0]]
-                    boardPlay = game.actionprob[actionPosition]
-
-                    boardPlay = convertToRealTiles(boardPlay)
-
-                    for tile in boardPlay:
-                        if game.place(tile[0], tile[1], tile[2], tile[3]):
-                            game.player2.delRack(tile[0], tile[1])
-
-                        else:
-                            game.round += 1
-
-                    if (game.player2.rackCount() + game.player1.rackCount() + game.bag.bagCount() + len(
-                            np.where(game.tilecolor != 0)[0]) != 108):
-                        print('\rbaordplay2:{0}'.format(boardPlay))
-                    game.player2.addTileToRack(game.bag)
-
-                    game.round = 0
-
-                    print('\rbag:{0}'.format(game.bag.bagCount()))
-                    print('\rbpordplay2:{0}'.format(boardPlay))
-
-                    game.player2.point += game.getpoint([[x[2], x[3]] for x in boardPlay])
-                    print('\rpoint:{0}'.format(game.player2.point))
-
-                else:
-                    game.player2.newRack(game.bag)
-                    game.round += 1
-
-                first = not first
-
-        end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
-        total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
-                                                                                                    '%H:%M:%S'))
-        print('total_time:' + str(total_time))
-
-        if game.winner() == 1:
-            maxWin[0] += 1
-
-
-        else:
-            maxWin[1] += 1
 import csv
-def getmaxWin():
-    global  maxWin
-    return maxWin
-
-
 def savebrain1():
     global savefile
-    global cnn, optimizer
+    global cnn, optimizer, cnnred
 
 
     print("=> saving checkpoint... ")
@@ -1357,17 +1113,6 @@ def savebrain1():
 
     print("=> saving checkpoint... ")
 
-def savebrainmultiprocess(cnn,optimizer):
-    global savefile
-
-
-    print("=> saving checkpoint... ")
-    checkpoint = {'model': cnn,
-                  'state_dict': cnn.state_dict(),
-                  'optimizer': optimizer.state_dict()}
-    torch.save(checkpoint, 'bestrandom.pth')
-
-    print("=> saving checkpoint... ")
 def savebraintrain():
     global savefile
     global runningloss
@@ -1389,17 +1134,13 @@ def savegameboard(boardplay):
 
     print("=> saving game... ")
 def loadbrain2():
-    global cnn_iter1, optimizer
-    cnn_iter1 = ConnectNet()
-    cnn_iter1.init_weights()
-    if os.path.isfile('bestrandomiter.pth'):
+    global cnn, optimizer, rewardcnn, cnnred, rewardcnnred
+    if os.path.isfile('best_iter200.pth'):
         print("=> loading checkpoint... ")
-        # checkpoint = torch.load('bestrandom.pth', map_location=cuda0)
-        checkpoint = torch.load('bestrandomiter.pth')
+
+        checkpoint = torch.load('best_iter200.pth', map_location=cuda0)
         cnn_iter1.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-
-
 
 
 
@@ -1423,13 +1164,7 @@ def loadcsv():
         print("no checkpoint found...")
 
 def loadbrain1():
-    global cnn, optimizer
-
-    # cnn = ConnectNet().to(cuda0)
-    cnn = ConnectNet()
-    cnn.init_weights()
-    # cnn_iter1 = ConnectNet().to(cuda0)
-
+    global cnn, optimizer, rewardcnn, cnnred, rewardcnnred
     if os.path.isfile('bestrandom.pth'):
         print("=> loading checkpoint... ")
         # checkpoint = torch.load('bestrandom.pth', map_location=cuda0)
