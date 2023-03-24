@@ -20,7 +20,7 @@ if __name__ == '__main__':
         loadbrain1()
         loadbrain2()
         # loadraindeque()
-        pool.map(local, [4,4,4,4,4,4,4,4])
+        pool.map(local, [5,5,5,5,5,5,5,5])
         pool.close()  # no more tasks
         pool.join()  # wrap up current tasks
     end_timeTotal = datetime.datetime.now().time().strftime('%H:%M:%S')

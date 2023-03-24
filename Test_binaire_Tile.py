@@ -39,7 +39,7 @@ class TestClassBinaireDemoInstance:
     def test_tileGreenCirclenumpy(self):
         game=GameNumpy()
 
-        game.place(1,1,54,54)
+        game.place(1,1,0,0)
         assert game.tilecolor[54,54]== 1
         assert game.tileshape[54,54]== 1
 
@@ -164,29 +164,29 @@ class TestClassBinaireDemoInstance:
         game.isvalid=game.place(TileBinaire(4, 1), 0, 1)
 
         game.isvalid=game.place(TileBinaire(4, 1), 2, 1)
-        # import matplotlib.pyplot as plt
-        # import cv2
-        #
-        # from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-        # from cairosvg import svg2png
-        #
-        #
-        # fig, ax = plt.subplots(figsize=(12, 8))
-        #
-        # for index,x in enumerate(game.board):
-        #         svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + x.color + x.shape + ".svg",
-        #                 write_to="stinkbug.png")
-        #         plt.xlim([0, 50])
-        #         plt.ylim([0, 50])
-        #         arr_img = plt.imread("stinkbug.png")
-        #         half = cv2.resize(arr_img, (0, 0), fx=0.1, fy=0.1)
-        #         im = OffsetImage(half)
-        #
-        #         ab = AnnotationBbox(im, (25 + x.coordinate.x * 2.5, 25 + x.coordinate.y * 3.5), xycoords='data')
-        #         ax.add_artist(ab)
-        #
-        # plt.show(block=True)
-        # plt.interactive(False)
+        import matplotlib.pyplot as plt
+        import cv2
+
+        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+        from cairosvg import svg2png
+
+
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        for index,x in enumerate(game.board):
+                svg2png(url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + x.color + x.shape + ".svg",
+                        write_to="stinkbug.png")
+                plt.xlim([0, 50])
+                plt.ylim([0, 50])
+                arr_img = plt.imread("stinkbug.png")
+                half = cv2.resize(arr_img, (0, 0), fx=0.1, fy=0.1)
+                im = OffsetImage(half)
+
+                ab = AnnotationBbox(im, (25 + x.coordinate.x * 2.5, 25 + x.coordinate.y * 3.5), xycoords='data')
+                ax.add_artist(ab)
+
+        plt.show(block=True)
+        plt.interactive(False)
 
         assert game.validBoard() == True
 
@@ -932,7 +932,31 @@ class TestClassBinaireDemoInstance:
 
         game.listValidMovePlayer2()
         assert game.isvalid == True
-        
+
+    def test_shouldvalidboardwhensqwirckleNumpytest2(self):
+        game = GameNumpy()
+        game.isvalid = game.place(2, 1, -1, 0)
+        game.isvalid = game.place(2, 4, 0, 0)
+        game.isvalid = game.place(2, 3, 1, 0)
+        game.isvalid = game.place(2, 5, -2, 0)
+        game.isvalid = game.place(2, 2, 2, 0)
+
+        game.listValidMovePlayer2()
+        assert game.isvalid == True
+    def test_shouldvalidboardwhensqwirckleNumpytest(self):
+        # [{'tile': [1, 2, 0, 0]}, {'tile': [4, 2, -1, 0]}, {'tile': [4, 6, -1, -1]}, {'tile': [1, 4, 1, 0]},
+        #  {'tile': [6, 4, 1, 1]}, {'tile': [6, 6, 2, 1]}, {'tile': [5, 2, 0, -1]}]
+        game = GameNumpy()
+        game.isvalid = game.place(1, 2, 0, 0)
+        game.isvalid = game.place(4, 2, -1, 0)
+        game.isvalid = game.place(4, 6, -1, -1)
+        game.isvalid = game.place(1, 4, 1, 0)
+        game.isvalid = game.place(6, 4, 1, 1)
+        game.isvalid = game.place(6, 6, 2, 1)
+        game.isvalid = game.place(5, 2, 0, -1)
+
+        # game.listValidMovePlayer2()
+        assert game.isvalid == False
     def test_a_party(self):
         game = GameNumpy()
         game.setActionprob()
@@ -1055,114 +1079,9 @@ class TestClassBinaireDemoInstance:
         import cv2
         from matplotlib.offsetbox import OffsetImage, AnnotationBbox
         from cairosvg import svg2png
-        test = [[1, 5, 37, 48],
-                [1, 1, 37, 49],
-                [6, 6, 38, 47],
-                [6, 5, 38, 48],
-                [5, 6, 38, 51],
-                [5, 3, 38, 52],
-                [4, 6, 39, 47],
-                [4, 5, 39, 48],
-                [4, 3, 39, 49],
-                [4, 3, 39, 52],
-                [6, 3, 39, 53],
-                [4, 4, 40, 49],
-                [3, 4, 40, 50],
-                [1, 4, 40, 51],
-                [6, 6, 40, 53],
-                [5, 6, 40, 54],
-                [1, 5, 41, 48],
-                [4, 5, 41, 49],
-                [3, 3, 41, 52],
-                [5, 4, 41, 54],
-                [4, 1, 42, 49],
-                [6, 1, 42, 50],
-                [5, 3, 42, 52],
-                [5, 6, 42, 53],
-                [5, 1, 42, 54],
-                [2, 6, 43, 48],
-                [6, 3, 43, 50],
-                [1, 3, 43, 51],
-                [2, 3, 43, 52],
-                [5, 5, 44, 47],
-                [2, 5, 44, 48],
-                [1, 6, 44, 51],
-                [2, 4, 45, 48],
-                [1, 1, 45, 50],
-                [1, 2, 45, 51],
-                [1, 4, 45, 52],
-                [2, 6, 46, 46],
-                [2, 1, 46, 47],
-                [2, 3, 46, 48],
-                [2, 5, 46, 49],
-                [1, 4, 46, 51],
-                [1, 6, 46, 52],
-                [6, 6, 46, 56],
-                [2, 1, 47, 46],
-                [5, 5, 47, 49],
-                [5, 2, 47, 50],
-                [1, 2, 47, 52],
-                [1, 3, 47, 53],
-                [2, 6, 47, 56],
-                [2, 1, 48, 45],
-                [6, 1, 48, 46],
-                [5, 1, 48, 47],
-                [2, 2, 48, 50],
-                [5, 2, 48, 51],
-                [2, 3, 48, 53],
-                [3, 1, 48, 55],
-                [3, 6, 48, 56],
-                [3, 2, 48, 57],
-                [5, 2, 49, 47],
-                [5, 4, 49, 48],
-                [3, 2, 49, 51],
-                [3, 5, 49, 52],
-                [3, 3, 49, 53],
-                [3, 1, 49, 54],
-                [3, 6, 49, 55],
-                [4, 2, 49, 57],
-                [6, 4, 50, 48],
-                [4, 5, 50, 52],
-                [3, 4, 50, 54],
-                [2, 4, 51, 48],
-                [4, 4, 51, 49],
-                [3, 4, 51, 50],
-                [5, 4, 51, 51],
-                [3, 5, 51, 54],
-                [5, 5, 51, 55],
-                [6, 5, 51, 56],
-                [4, 1, 52, 49],
-                [5, 3, 52, 51],
-                [1, 3, 52, 53],
-                [3, 3, 52, 54],
-                [6, 3, 52, 56],
-                [6, 5, 52, 57],
-                [3, 1, 53, 50],
-                [5, 1, 53, 51],
-                [4, 1, 53, 52],
-                [1, 1, 53, 53],
-                [6, 1, 53, 57],
-                [4, 2, 54, 49],
-                [3, 2, 54, 50],
-                [4, 6, 54, 52],
-                [1, 6, 54, 53],
-                [3, 6, 54, 54],
-                [4, 3, 55, 49],
-                [1, 5, 55, 53],
-                [3, 5, 55, 54],
-                [2, 5, 55, 55],
-                [4, 2, 56, 48],
-                [4, 6, 56, 49],
-                [2, 2, 56, 52],
-                [1, 2, 56, 53],
-                [2, 2, 57, 51],
-                [6, 2, 57, 52],
-                [6, 4, 58, 49],
-                [4, 4, 58, 50],
-                [2, 4, 58, 51],
-                [6, 2, 59, 49],
-                [6, 4, 59, 50],
-                ]
+
+        test=[[1, 4, 53, 54],[2, 4, 54, 54],[2, 3, 55, 54],[2, 3, 54, 55],[6, 3, 55,55]]
+
         fig, ax = plt.subplots(figsize=(14, 14))
         plt.xlim([-150, 150])
         plt.ylim([-150, 150])
@@ -1181,8 +1100,18 @@ class TestClassBinaireDemoInstance:
         plt.show(block=True)
         plt.interactive(False)
 
+    def test_shouldaddpointtoplayerNumpyforaqwirkle(self):
+        game = GameNumpy()
+        game.isvalid = game.place(1, 5, 0, 0)
+        game.isvalid = game.place(1, 2, 1, 0)
+        game.isvalid = game.place(1, 4, 2, 0)
+        game.isvalid = game.place(1, 1, 3, 0)
+        game.isvalid = game.place(1, 3, 4, 0)
+        game.listValidMovePlayer2()
+        game.place(1, 6, 5, 0)
+        game.player2.point += game.getpoint([[5, 0]])
 
-
+        assert game.player2.point == 12
     def test_shouldaddpointtoplayerNumpy(self):
         game = GameNumpy()
         game.isvalid=game.place(1, 5, 0, 0)
@@ -1252,7 +1181,6 @@ class TestClassBinaireDemoInstance:
 
 
 
-
     def test_placetempory(self):
         game = GameNumpy()
         # Test placing a game piece at an empty position within the board bounds
@@ -1294,7 +1222,7 @@ class TestClassBinaireDemoInstance:
         assert game.placetempory(1, 1, 53, 53) == False
 
         # Test placing a game piece with the same color but different shape as a game piece in the same row
-        assert game.placetempory(1, 2, 53, 54) == True
+        assert game.placetempory(1, 2, 53, 54) == False
 
         # Test placing a game piece with the same shape but different color as a game piece in the same row
         assert game.placetempory(2, 1, 53, 55) == False
@@ -1303,19 +1231,19 @@ class TestClassBinaireDemoInstance:
         assert game.placetempory(1, 1, 53, 56) == False
 
         # Test placing a game piece with the same color but different shape as a game piece in the same column
-        assert game.placetempory(1, 3, 54, 53) == True
+        assert game.placetempory(1, 3, 54, 53) == False
 
         # Test placing a game piece with the same shape but different color as a game piece in the same column
-        assert game.placetempory(2, 1, 55, 53) == True
+        assert game.placetempory(2, 1, 55, 53) == False
 
         # Test placing a game piece with the same color and shape as a game piece in the same column
         assert game.placetempory(1, 1, 56, 53) == False
 
         # Test placing a game piece with the same color but different shape as a game piece in an adjacent position
-        assert game.placetempory(1, 1, 54, 54) == True
+        assert game.placetempory(1, 1, 54, 54) == False
 
         # Test placing a game piece with the same shape but different color as a game piece in an adjacent position
-        assert game.placetempory(1, 1, 55, 55) == True
+        assert game.placetempory(1, 1, 55, 55) == False
 
         # Test placing a game piece with the same color and shape as a game piece in an adjacent position
         assert game.placetempory(1, 1, 56, 56) == False

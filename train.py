@@ -14,7 +14,9 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.tensorboard import SummaryWriter
 
 from qwirckleAlphazero import local, loadcsv, loadbrain1, savebrain1, loadraindeque, localtrain, savegameboard, \
-    loadraindeque2, train_one_epoch, ConnectNet, savebraintrain, savebrainmultiprocess, cnn
+    loadraindeque2, train_one_epoch, savebraintrain, savebrainmultiprocess, cnn, loadraindequeTrain, \
+    train_one_epochLoader
+from ConnectNet import ConnectNet
 
 
 def print_hi(name):
@@ -26,16 +28,16 @@ def print_hi(name):
 if __name__ == '__main__':
 
     # loadraindeque()
-    loadbrain1()
+    # loadbrain1()
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     writer = SummaryWriter('/home/jcgouleau/PycharmProjects/alphazeroqwirkle/fashion_trainer_{}'.format(timestamp))
     loadraindeque()
     epoch_number = 0
 
-    EPOCHS = 6
-    # cnn = ConnectNet()
-    # cnn.init_weights()
+    EPOCHS = 5
+    cnn = ConnectNet()
+    cnn.init_weights()
     # optimizer = torch.optim.SGD(cnn.parameters(),lr=0.1,momentum=0.9,weight_decay=5e-4)
     # optimizer = torch.optim.SGD(cnn.parameters(), lr=0.01, momentum=0.9)
     optimizer = torch.optim.Adam(cnn.parameters(), lr=0.000000001)
@@ -44,7 +46,7 @@ if __name__ == '__main__':
 
         # Make sure gradient tracking is on, and do a pass over the data
 
-        avg_loss = train_one_epoch(epoch, writer,optimizer)
+        avg_loss = train_one_epochLoader(epoch, writer,optimizer)
     savebrainmultiprocess(cnn,optimizer)
 
 

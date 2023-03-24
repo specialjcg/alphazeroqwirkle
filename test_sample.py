@@ -700,6 +700,7 @@ class TestClassDemoInstance:
     def test_shouldnotvalidMove_for_twoFourPointStarOnsamelign(self):
         game = Game()
 
+
         boardplay = [[['Green', 'FourPointStar', [0, 0]]], [['Blue', 'FourPointStar', [-1, 0]]],
      [['Orange', 'FourPointStar', [-1, -1]]],
      [['Purple', 'FourPointStar', [0, -2]], ['Purple', 'FourPointStar', [-1, -2]]],
@@ -737,7 +738,49 @@ class TestClassDemoInstance:
         # game.listValidMovePlayer1()
 
         assert game.validBoard(game.tileOnBoard) == False
+    def test_shouldnotvalidMove_for_twoFourPointStarOnsamelign(self):
+        game = Game()
+        # TileColor = {'Green': 1, 'Blue': 2, 'Purple': 3, 'Red': 4, 'Orange': 5, 'Yellow': 6}
+        # TileShape = {'Circle': 1, 'Square': 2, 'Diamond': 3, 'Clover': 4, 'FourPointStar': 5, 'EightPointStar': 6}
+        # [{'tile': [1, 2, 0, 0]}, {'tile': [4, 2, -1, 0]}, {'tile': [4, 6, -1, -1]}, {'tile': [1, 4, 1, 0]},
+        #  {'tile': [6, 4, 1, 1]}, {'tile': [6, 6, 2, 1]}, {'tile': [5, 2, 0, -1]}]
+        boardplay = [[['Green', 'Square', [0, 0]]], [['Red', 'Square', [-1, 0]]],
+     [['Red', 'EightPointStar', [-1, -1]]],
+     [['Green', 'Clover', [1, 0]], ['Yellow', 'Clover', [1, 1]]],
+     [['Yellow', 'EightPointStar', [2, 1]],['Orange', 'Square', [0, -1]]]]
 
+        for lign in boardplay:
+            for i in lign:
+                game.tileOnBoard.append(Tile(i[0], i[1], Coordinate(i[2][0], i[2][1])))
+
+        import matplotlib.pyplot as plt
+        import cv2
+
+        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+        from cairosvg import svg2png
+
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        for x in boardplay:
+            for tile in x:
+                svg2png(
+                    url="/home/jcgouleau/PycharmProjects/alphazeroqwirkle/img/" + tile[0] + tile[1] + ".svg",
+                    write_to="stinkbug.png")
+                plt.xlim([0, 108])
+                plt.ylim([0,108])
+                arr_img = plt.imread("stinkbug.png")
+                half = cv2.resize(arr_img, (0, 0), fx=0.05, fy=0.05)
+                im = OffsetImage(half)
+
+                ab = AnnotationBbox(im, (54 + tile[2][0] * 4.5, 54 + tile[2][1] * 6.5), xycoords='data')
+                ax.add_artist(ab)
+
+        plt.show(block=True)
+        plt.interactive(False)
+
+        # game.listValidMovePlayer1()
+
+        assert game.validBoard(game.tileOnBoard) == False
 
 
     def test_a_party(self):

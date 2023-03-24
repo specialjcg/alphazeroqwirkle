@@ -126,7 +126,8 @@ class GameBinaire:
             sameshape = True
             samecolor = True
             for pos in range(1, 7):
-
+                if self.tileOnBoard.getTile(Coordinate(placex-pos, placey ))==None:
+                    break
                 if self.tileOnBoard.tileEqual(Coordinate(placex-pos, placey), tile):
                     return False
                 if self.tileOnBoard.tileNotEqual(Coordinate(placex-pos, placey), tile):

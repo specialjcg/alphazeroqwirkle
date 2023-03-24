@@ -1,3 +1,4 @@
+import concurrent
 import itertools
 
 import numpy as np
@@ -236,7 +237,43 @@ class GameNumpy:
                     self.listValidMoves = self.unique(self.listValidMoves)
                 i += 1
         self.listValidMoves=sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
+    def listValidMovePlayer2All(self):
+        self.listValidMoves = []
+        inp_list = self.player2.getRackList()
+        # permutations = []
+        # for i in range(1, len(inp_list) + 1):
+        #     permutations.extend(list(itertools.permutations(inp_list, r=i)))
+        permutations = [perm for i in range(1, len(inp_list) + 1) for perm in itertools.permutations(inp_list, r=i)]
+        if (len(permutations) > 1):
+            permutations = np.unique(permutations)
+            vfunc = np.vectorize(self.validTilePerùutation)
 
+            permutations = permutations[np.where(vfunc(permutations) == True)]
+
+        if len(np.where(self.tilecolor != 0)[0]) > 0:
+            listNotZero = np.where(self.tilecolor != 0)
+            val = len(listNotZero[0])
+
+
+            [[self.permutationFromPositionTiletileleftAll(permut, listNotZero[0][x] - 54,
+                                                       listNotZero[1][x] - 54) for x in range(val)] for permut in
+             permutations]
+        else:
+            i = 0
+            while i < len(permutations):
+                self.deepBoardbinarryCopy()
+
+                isvalidTempory = True
+                for index, tile in enumerate(permutations[i]):
+                    isvalidTempory = isvalidTempory and self.placetempory(tile[0], tile[1], 0, index)
+
+                if isvalidTempory:
+                    rackValidMove = [[tile[0], tile[1], 0, index] for index, tile in
+                                     enumerate(permutations[i])]
+                    self.listValidMoves.append(rackValidMove)
+                    self.listValidMoves = self.unique(self.listValidMoves)
+                i += 1
+        self.listValidMoves=sorted(self.listValidMoves, key=lambda x: -len(x))
     def testplaceTile(self, permutation, posx, posy, sensx, sensy):
         self.deepBoardbinarryCopy()
         for index, tile in enumerate(permutation):
@@ -268,24 +305,7 @@ class GameNumpy:
         permutations = []
         indices = list(range(len(permutation)))
         self.permute(indices, 0, len(indices), permutations)
-        # for indices in permutations:
-        #     positions = [(posxtile + 1, posytile), (posxtile - 1, posytile), (posxtile, posytile - 1),
-        #                  (posxtile, posytile + 1)]
-        #     for posx, posy in positions:
-        #         if self.tilecolor[posx, posy] == 0:
-        #             for indx in range(0, 4):
-        #                 sensx, sensy = [(1, 0), (-1, 0), (0, -1), (0, 1)][indx]
-        #                 permuted_permutation = [permutation[i] for i in indices]
-        #                 if self.testplaceTile(permuted_permutation, posx, posy, sensx, sensy):
-        #                     rackValidMove = [[tile[0], tile[1], posx + sensx * index, posy + sensy * index] for
-        #                                      index, tile
-        #                                      in
-        #                                      enumerate(permuted_permutation)]
-        #                     if rackValidMove not in self.listValidMoves:
-        #                         self.listValidMoves.append(rackValidMove)
 
-        # Get all permutations of tiles in the player's rack
-        # Get all permutations of tiles in the player's rack
         for indices in permutations:
             # Create a list of positions surrounding the current position on the board
             positions = [
@@ -321,54 +341,57 @@ class GameNumpy:
                             self.listValidMoves.append(rackValidMove)
 
         self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
+    def permutationFromPositionTiletileleftAll(self, permutation, posxtile, posytile):
+        permutations = []
+        indices = list(range(len(permutation)))
+        self.permute(indices, 0, len(indices), permutations)
 
-    # def permutationFromPositionTiletileleft(self, permutation, posxtile, posytile):
-    #     for j in range(0, 4):
-    #         if j == 0:
-    #             posx = posxtile + 1
-    #             posy = posytile
-    #         if j == 1:
-    #             posx = posxtile - 1
-    #             posy = posytile
-    #         if j == 2:
-    #             posx = posxtile
-    #             posy = posytile - 1
-    #         if j == 3:
-    #             posx = posxtile
-    #             posy = posytile + 1
-    #
-    #         if self.tilecolor[posx, posy] == 0:
-    #             for indx in range(0, 4):
-    #                 if indx == 0:
-    #                     sensx = -1
-    #                     sensy = 0
-    #                 if indx == 1:
-    #                     sensx = 1
-    #                     sensy = 0
-    #                 if indx == 2:
-    #                     sensx = 0
-    #                     sensy = -1
-    #                 if indx == 3:
-    #                     sensx = 0
-    #                     sensy = 1
-    #
-    #                 if self.testplaceTile(permutation, posx, posy, sensx, sensy):
-    #                     rackValidMove = [[tile[0], tile[1], posx + sensx * index, posy + sensy * index] for index, tile
-    #                                      in
-    #                                      enumerate(permutation)]
-    #                     self.listValidMoves.append(rackValidMove)
-    #                     self.listValidMoves = self.unique(self.listValidMoves)
-    #         self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
+        for indices in permutations:
+            # Create a list of positions surrounding the current position on the board
+            positions = [
+                (posxtile + 1, posytile),
+                (posxtile - 1, posytile),
+                (posxtile, posytile - 1),
+                (posxtile, posytile + 1)
+            ]
+
+            # Loop through each position
+            for posx, posy in positions:
+                # Skip this position if the tile is not empty
+                if self.tilecolor[posx, posy] != 0:
+                    continue
+
+                # Loop through each orientation
+                for indx in range(4):
+                    sensx, sensy = [(1, 0), (-1, 0), (0, -1), (0, 1)][indx]
+
+                    # Get the permuted tiles in the current orientation
+                    permuted_permutation = [permutation[i] for i in indices]
+
+                    # Check if the permuted tiles can be placed at this position and orientation
+                    if self.testplaceTile(permuted_permutation, posx, posy, sensx, sensy):
+                        # Create a list of valid moves for this placement
+                        rackValidMove = [
+                            [tile[0], tile[1], posx + sensx * index, posy + sensy * index]
+                            for index, tile in enumerate(permuted_permutation)
+                        ]
+
+                        # Add the valid moves to the list if they are not already present
+                        if rackValidMove not in self.listValidMoves:
+                            self.listValidMoves.append(rackValidMove)
+
+        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))
+
 
 
 
     def listValidMovePlayer1(self):
         self.listValidMoves = []
         inp_list = self.player1.getRackList()
-        permutations = []
-        for i in range(1, len(inp_list) + 1):
-            permutations.extend(list(itertools.permutations(inp_list, r=i)))
-
+        # permutations = []
+        # for i in range(1, len(inp_list) + 1):
+        #     permutations.extend(list(itertools.permutations(inp_list, r=i)))
+        permutations = [perm for i in range(1, len(inp_list) + 1) for perm in itertools.permutations(inp_list, r=i)]
         if (len(permutations) > 1):
             permutations = np.unique(permutations)
             vfunc = np.vectorize(self.validTilePerùutation)
@@ -398,7 +421,42 @@ class GameNumpy:
                     self.listValidMoves = self.unique(self.listValidMoves)
                 i += 1
         self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
+    def listValidMovePlayer1All(self):
+        self.listValidMoves = []
+        inp_list = self.player1.getRackList()
+        # permutations = []
+        # for i in range(1, len(inp_list) + 1):
+        #     permutations.extend(list(itertools.permutations(inp_list, r=i)))
+        permutations = [perm for i in range(1, len(inp_list) + 1) for perm in itertools.permutations(inp_list, r=i)]
+        if (len(permutations) > 1):
+            permutations = np.unique(permutations)
+            vfunc = np.vectorize(self.validTilePerùutation)
 
+            permutations = permutations[np.where(vfunc(permutations) == True)]
+
+        if len(np.where(self.tilecolor != 0)[0]) > 0:
+            listNotZero = np.where(self.tilecolor != 0)
+            val = len(listNotZero[0])
+
+            [[self.permutationFromPositionTiletileleftAll(permut, listNotZero[0][x] - 54,
+                                                       listNotZero[1][x] - 54) for x in range(val)] for permut in
+             permutations]
+        else:
+            i = 0
+            while i < len(permutations):
+                self.deepBoardbinarryCopy()
+
+                isvalidTempory = True
+                for index, tile in enumerate(permutations[i]):
+                    isvalidTempory = isvalidTempory and self.placetempory(tile[0], tile[1], 0, index)
+
+                if isvalidTempory:
+                    rackValidMove = [[tile[0], tile[1], 0, index] for index, tile in
+                                     enumerate(permutations[i])]
+                    self.listValidMoves.append(rackValidMove)
+                    self.listValidMoves = self.unique(self.listValidMoves)
+                i += 1
+        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))
     def unique(self, list1):
 
         # initialize a null list
@@ -582,32 +640,48 @@ class GameNumpy:
             y1 = y + 54
             test = True
             test2=True
+            qwirkle = 0
             for j in range(1, 7):
+
                 if self.tilecolor[x1 - j, y1] != 0 and [x-1,y] not in tiles:
+                    qwirkle+=1
                     point = point + 1
                     test2 = False
                 else:
+                    if (qwirkle==5):
+                        point+=6
                     break
-
+            qwirkle = 0
             for j in range(1, 7):
                 if self.tilecolor[x1 + j, y1] != 0 and [x+1,y] not in tiles :
+                    qwirkle += 1
                     point = point + 1
                     test2 = False
                 else:
+                    if (qwirkle==5):
+                        point+=6
                     break
+            qwirkle = 0
 
             for j in range(1, 7):
                 if self.tilecolor[x1, y1 - j] != 0 and [x,y-1] not in tiles:
+                    qwirkle += 1
                     point = point + 1
                     test2 = False
                 else:
+                    if (qwirkle==5):
+                        point+=6
                     break
+            qwirkle = 0
 
             for j in range(1, 7):
                 if self.tilecolor[x1, y1 + j] != 0 and [x,y+1] not in tiles:
+                    qwirkle += 1
                     point = point + 1
                     test2 = False
                 else:
+                    if (qwirkle==5):
+                        point+=6
                     break
 
         return point
