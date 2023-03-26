@@ -2,47 +2,24 @@ import pickle
 
 import numpy as np
 import torch
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 
 import GameNumpy as newGame
-
+from Bag import Coordinate, Tile
+from qwirckleAlphazero import convertToBoard, convertToRealTiles, mcts, ConnectNet, MCTS, loadbrain1
 
 app = Flask(__name__)
 CORS(app)
 game = newGame.GameNumpy()
         #game.setActionprobtest()
 game.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
-
+gridnorme = np.zeros(shape=(26,54, 54))
 import json
-def loadbrain1():
-    global cnn, optimizer
-
-    # cnn = ConnectNet().to(cuda0)
-    cnn = ConnectNet()
-    cnn.init_weights()
-    # cnn_iter1 = ConnectNet().to(cuda0)
-
-    if os.path.isfile('bestrandom.pth'):
-        print("=> loading checkpoint... ")
-        # checkpoint = torch.load('bestrandom.pth', map_location=cuda0)
-        checkpoint = torch.load('bestrandom.pth')
-        cnn.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-
-
-
-
-
-        print("done !")
-    else:
-        print("no checkpoint found...")
-from qwirckleAlphazero import convertToBoard, convertToRealTiles
-from ConnectNet import ConnectNet
-
+import random
+import math
 loadbrain1()
 import jsonpickle
-gridnorme = np.zeros(shape=(26,54, 54))
 tileonboard = []
 @app.route("/play", methods=['GET'])
 @cross_origin()

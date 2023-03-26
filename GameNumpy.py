@@ -240,9 +240,6 @@ class GameNumpy:
     def listValidMovePlayer2All(self):
         self.listValidMoves = []
         inp_list = self.player2.getRackList()
-        # permutations = []
-        # for i in range(1, len(inp_list) + 1):
-        #     permutations.extend(list(itertools.permutations(inp_list, r=i)))
         permutations = [perm for i in range(1, len(inp_list) + 1) for perm in itertools.permutations(inp_list, r=i)]
         if (len(permutations) > 1):
             permutations = np.unique(permutations)
