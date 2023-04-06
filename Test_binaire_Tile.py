@@ -1,11 +1,9 @@
 import itertools
-from datetime import time
 from random import randrange
-from timeit import timeit
 
 import numpy as np
 
-from Bag import Game, Tile, Coordinate
+from Bag import Coordinate
 from BagBinaire import BagBinaire
 from BagNumpy import BagNumpy
 from GameBinary import GameBinaire
@@ -15,8 +13,7 @@ from PlayerNumpy import PlayerNumpy
 from TileBinaire import TileBinaire
 from TileColor import TileColor
 from TileShape import TileShape
-from qwirckleAlphazero import boardPlayToGridNorm, gridNormToBoardPlay, convertToBoard, gridNormtoRack, deepGridCopy, \
-    findindexinActionprob, get_valid_moves, findindexinActionprobnumpy
+from qwirckleAlphazero import findindexinActionprobnumpy
 
 
 class TestClassBinaireDemoInstance:
@@ -327,10 +324,6 @@ class TestClassBinaireDemoInstance:
         game = GameBinaire()
         game.setActionprob()
         import matplotlib.pyplot as plt
-        import cv2
-
-        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-        from cairosvg import svg2png
 
         fig, ax = plt.subplots(figsize=(12, 8))
         TileShape = {'Circle': 1, 'Square': 2, 'Diamond': 3, 'Clover': 4, 'FourPointStar': 5, 'EightPointStar': 6}
@@ -380,7 +373,6 @@ class TestClassBinaireDemoInstance:
     def test_listvalide_movesnotsamecolorandshapeonlineNumpy(self):
         game = GameNumpy()
         game.setActionprob()
-        import matplotlib.pyplot as plt
 
         TileShape = {'Circle': 1, 'Square': 2, 'Diamond': 3, 'Clover': 4, 'FourPointStar': 5, 'EightPointStar': 6}
         TileColor = {'Green': 1, 'Blue': 2, 'Purple': 3, 'Red': 4, 'Orange': 5, 'Yellow': 6}
@@ -431,12 +423,6 @@ class TestClassBinaireDemoInstance:
     def test_listvalide_movesnot_empty(self):
         game = GameBinaire()
         game.setActionprob()
-        import matplotlib.pyplot as plt
-        import cv2
-
-        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-        from cairosvg import svg2png
-
 
         TileShape = {'Circle': 1, 'Square': 2, 'Diamond': 3, 'Clover': 4, 'FourPointStar': 5, 'EightPointStar': 6}
         TileColor = {'Green': 1, 'Blue': 2, 'Purple': 3, 'Red': 4, 'Orange': 5, 'Yellow': 6}
@@ -473,12 +459,6 @@ class TestClassBinaireDemoInstance:
     def test_listvalide_movesnot_empty(self):
         game = GameBinaire()
         game.setActionprob()
-        import matplotlib.pyplot as plt
-        import cv2
-
-        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-        from cairosvg import svg2png
-
 
         TileShape = {'Circle': 1, 'Square': 2, 'Diamond': 3, 'Clover': 4, 'FourPointStar': 5, 'EightPointStar': 6}
         TileColor = {'Green': 1, 'Blue': 2, 'Purple': 3, 'Red': 4, 'Orange': 5, 'Yellow': 6}

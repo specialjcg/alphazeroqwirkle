@@ -1,6 +1,4 @@
-
-
-
+import concurrent.futures
 import os
 import pickle
 from collections import namedtuple, deque
@@ -8,6 +6,7 @@ from collections import namedtuple, deque
 import numpy as np
 import torch
 import torch.nn as nn
+from tensorboard import summary
 
 import GameNumpy as newGame
 from TileColor import TileColor
@@ -27,8 +26,15 @@ import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
+# def boardPlayToGridNorm(board, actions, playerval):
+#     nextBoard = np.copy(board)
+#     actions_array = np.array(actions)
+#     nextBoard[actions_array[:, 0]-1, actions_array[:, 2]+22, actions_array[:, 3]+22] = playerval
+#     nextBoard[5+actions_array[:, 1], actions_array[:, 2]+22, actions_array[:, 3]+22] = playerval
+#     return nextBoard
 def boardPlayToGridNorm(board, actions, playerval):
-    nextBoard = np.copy(board)
+    nextBoard = np.zeros_like(board)
+    nextBoard[:,:,:] = board[:,:,:]
     actions_array = np.array(actions)
     nextBoard[actions_array[:, 0]-1, actions_array[:, 2]+22, actions_array[:, 3]+22] = playerval
     nextBoard[5+actions_array[:, 1], actions_array[:, 2]+22, actions_array[:, 3]+22] = playerval
@@ -245,17 +251,24 @@ class ConnectNet(nn.Module):
 #     return board, -player,[]
 
 
-
-
 def get_next_state(board, player, action, game):
     nextState = list(game.actionprob[action])
-
     for tiles in game.listValidMoves:
-        if all(abs(x) < 22 and abs(y) < 22 for x, y in [(tile[2], tile[3]) for tile in tiles]):
-            if nextState == [[tile[0], tile[1]] for tile in tiles]:
-                return boardPlayToGridNorm(board, tiles, 1), -player, tiles
-
+        if all(abs(tile[2]) < 22 and abs(tile[3]) < 22 for tile in tiles) and nextState == [[tile[0], tile[1]] for tile in tiles]:
+            return boardPlayToGridNorm(board, tiles, 1), -player, tiles
     return board, -player, []
+
+
+
+# def get_next_state(board, player, action, game):
+#     nextState = list(game.actionprob[action])
+#
+#     for tiles in game.listValidMoves:
+#         if all(abs(x) < 22 and abs(y) < 22 for x, y in [(tile[2], tile[3]) for tile in tiles]):
+#             if nextState == [[tile[0], tile[1]] for tile in tiles]:
+#                 return boardPlayToGridNorm(board, tiles, 1), -player, tiles
+#
+#     return board, -player, []
 
 # for tiles in game.listValidMoves:
 #     tile_positions = [(tile[2], tile[3]) for tile in tiles]
@@ -289,6 +302,7 @@ def get_next_state(board, player, action, game):
 #     return valid_moves
 def findindexinActionprob(game):
     valid_moves = np.zeros(len(game.actionprob))
+    j=0
     for i, element in zip(game.listValidMoves, game.actionprob):
         if len(i) == len(element):
             if element[0][0] == i[0][0] or element[0][1] == i[0][1]:
@@ -303,19 +317,12 @@ def findindexinActionprob(game):
 def findindexinActionprobnumpy(game):
     valid_moves = np.zeros(23436)
     for i in game.listValidMoves:
-        valprob=[]
-        # for testnumpy in i:
-        #     valprob.append([testnumpy[0],testnumpy[1]])
         valprob=[[testnumpy[0],testnumpy[1]] for testnumpy in i]
-
-
-
-
         for index, x in enumerate(game.actionprob):
             if x==tuple(valprob):
                 valid_moves[index]=1
-
     return valid_moves
+
 
 
 def get_valid_moves(game):
@@ -337,18 +344,7 @@ def get_canonical_board(board, player):
     return player * board
 
 
-def ucb_score(parent, child):
-    """
-    The score for an action that would transition between the parent and child.
-    """
-    prior_score = child.prior * math.sqrt(parent.visit_count) / (child.visit_count + 1)
-    if (child.visit_count > 0) and (child.prior > 0):
-        # The value of the child is from the perspective of the opposing player
-        value_score = -child.value()
-    else:
-        value_score = 0
 
-    return value_score + prior_score
 
 
 # In[245]:
@@ -388,23 +384,76 @@ class Node:
             return 0
         return self.value_sum / self.visit_count
 
-    def select_child(self,game):
+
+    # def select_child(self,game):
+    #     """
+    #     Select the child with the highest UCB score.
+    #     """
+    #     best_score = -np.inf
+    #     best_action = -1
+    #     best_child = None
+    #
+    #     for action,child in enumerate(self.children.items()):
+    #         score = ucb_score(self, child[1])
+    #         if not isFinish(self.state,game):
+    #             if score> best_score:
+    #                 best_score = score
+    #                 best_child = child[1]
+    #                 best_action=child[0]
+    #
+    #     return best_action,best_child
+
+    # def ucb_score( self,child):
+    #     """
+    #     The score for an action that would transition between the parent and child.
+    #     """
+    #     prior_score = child.prior * math.sqrt(self.visit_count) / (child.visit_count + 1)
+    #     if (child.visit_count > 0) and (child.prior > 0):
+    #         # The value of the child is from the perspective of the opposing player
+    #         value_score = -child.value()
+    #     else:
+    #         value_score = 0
+    #
+    #     return value_score + prior_score
+    # def select_child(self, game):
+    #     """
+    #     Select the child with the highest UCB score.
+    #     """
+    #     if not self.children:
+    #         return None
+    #
+    #     exploration_weight = 1.4  # tweakable parameter
+    #     best_action, best_child = max(self.children.items(),
+    #                                   key=lambda item: self.ucb_score(item[1]) + exploration_weight * math.sqrt(
+    #                                       self.visit_count) * item[1].prior)
+    #
+    #     return best_action, best_child
+    def ucb_score(parent, child):
+        """
+        The score for an action that would transition between the parent and child.
+        """
+        prior_score = child.prior * math.sqrt(parent.visit_count) / (child.visit_count + 1)
+        if (child.visit_count > 0) and (child.prior > 0):
+            # The value of the child is from the perspective of the opposing player
+            value_score = -child.value()
+        else:
+            value_score = 0
+
+        return value_score + prior_score
+
+    def select_child(self, game):
         """
         Select the child with the highest UCB score.
         """
-        best_score = -np.inf
-        best_action = -1
-        best_child = None
+        if not self.children:
+            return None
 
-        for action,child in enumerate(self.children.items()):
-            score = ucb_score(self, child[1])
-            if not isFinish(self.state,game):
-                if score> best_score:
-                    best_score = score
-                    best_child = child[1]
-                    best_action=child[0]
+        exploration_weight = 1.4  # tweakable parameter
+        best_action, best_child = max(self.children.items(),
+                                      key=lambda item: self.ucb_score( item[1]) + exploration_weight * math.sqrt(
+                                          self.visit_count) * item[1].prior)
 
-        return best_action,best_child
+        return best_action, best_child
 
     def expand(self, state, to_play, action_probs):
         """
@@ -438,16 +487,24 @@ class Node:
         return node
 
 
+# def convertToBoard(state, racks):
+#     nextBoard=np.copy(state)
+#     i=0
+#     for rack in racks:
+#         nextBoard[12+rack[0]][0,i]=1
+#         nextBoard[18+rack[1]][0,i]=1
+#         i+=1
+#     return nextBoard
 def convertToBoard(state, racks):
-    nextBoard=np.copy(state)
-    i=0
+    nextBoard = np.zeros_like(state)
+    nextBoard[:12, :] = state[:12, :]
     for rack in racks:
-        nextBoard[12+rack[0]][0,i]=1
-        nextBoard[18+rack[1]][0,i]=1
-        i+=1
+        nextBoard[12+rack[0], 0:len(rack)] = 1
+        nextBoard[18+rack[1], 0:len(rack)] = 1
     return nextBoard
 
 import datetime
+import multiprocessing
 class MCTS:
 
     def backpropagate(self, search_path, value, to_play):
@@ -459,20 +516,29 @@ class MCTS:
             node.value_sum += value if node.to_play == to_play else -value
             node.visit_count += 1
 
-    def run(self, state, to_play,action,game,numsimul):
+
+
+    def run( self,state, to_play,action,gamesimul,numsimul,indexprocess):
       with torch.no_grad():
           root = Node(0, to_play,action)
           statesignal = torch.tensor(state, dtype=torch.float32)
           action_probs, value = cnn(statesignal)
-          gamesimul=game.__copy__()
           valid_moves = get_valid_moves(gamesimul)
           action_probs = action_probs * valid_moves # mask invalid moves
           action_probs /= torch.sum(action_probs)
 
           root.expand(state, to_play, torch.squeeze(action_probs,0))
+          i=0
+          rootcopy=root.copy()
+          for nodechildren in sorted(root.children.items(), key=lambda x: x[1].prior, reverse=True)[0:5]:
+              if (i==indexprocess):
+                  rootcopy.children = {}
+                  rootcopy.children[nodechildren[0]] = nodechildren[1]
+                  break
+              i+=1
+          root=rootcopy.copy()
           if len(root.children)>0:
 
-              start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
 
 
       #for i in range(777):
@@ -545,11 +611,131 @@ class MCTS:
                       node.expand(next_state, parent.to_play * -1,torch.squeeze(action_probs,0))
 
                   self.backpropagate(search_path, value, parent.to_play * -1)
-              end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
-              total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
-                                                                                                          '%H:%M:%S'))
-              print('total_time:' + str(total_time))
+
               return root
+          else:
+              return root
+
+    def run_mctsmulti(self, state, to_play, action, game, num_simul, num_processes):
+        with torch.no_grad():
+            root = Node(0, to_play, action)
+            statesignal = torch.tensor(state, dtype=torch.float32)
+            action_probs, value = cnn(statesignal)
+            game_simul = game.__copy__()
+            valid_moves = get_valid_moves(game_simul)
+            action_probs = action_probs * valid_moves  # mask invalid moves
+            action_probs /= torch.sum(action_probs)
+
+            root.expand(state, to_play, torch.squeeze(action_probs, 0))
+            if len(root.children) > 0:
+                start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+                args_list=[]
+                for nodechildren in sorted(root.children.items(), key=lambda x: x[1].prior, reverse=True)[0:5]:
+                    rootcopy=root.copy()
+                    rootcopy.children={}
+                    rootcopy.children[nodechildren[0]]=nodechildren[1]
+                    args_list.append(rootcopy)
+                # Parallelize the simulations
+                with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
+                    with multiprocessing.Pool(processes=8) as pool:
+                        results = list(pool.map(self.run_mcts, [args_list[0], 1, 0, game_simul, num_simul]*8))
+                end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+                total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
+                                                                                                            '%H:%M:%S'))
+                print('total_time: ' + str(total_time))
+            return root
+    def run_mcts(self,root, to_play, action, gamesimul, numsimul):
+        i = 0
+        start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+        while i < numsimul:
+            i += 1
+
+            node = root.copy()
+            search_path = [node]
+
+            # SELECT
+            while node.expanded():
+                action, node = node.select_child(gamesimul)
+                search_path.append(node)
+
+            parent = search_path[-2]
+            state = parent.state
+            # Now we're at a leaf node and we would like to expand
+            # Players always play from their own perspective
+
+            next_state, _, isLegalmove = get_next_state(state, player=to_play, action=action, game=gamesimul)
+            # Get the board from the perspective of the other player
+            next_state = get_canonical_board(next_state, player=-to_play)
+
+            # The value of the new state from the perspective of the other player
+            value = get_reward_for_player(next_state, player=to_play)
+            if value == 0 and len(isLegalmove) != 0:
+                # If the game has not ended:
+                # EXPAND
+                if (parent.to_play == 1):
+                    if len(gamesimul.listValidMoves) > 0:
+                        for tile in isLegalmove:
+                            gamesimul.place(tile[0], tile[1], tile[2], tile[3])
+                            gamesimul.player1.delRack(tile[0], tile[1])
+                        gamesimul.player1.addTileToRack(gamesimul.bag)
+                        gamesimul.listValidMovePlayer1()
+                        next_state = convertToBoard(next_state, gamesimul.player1.getRack())
+
+                    else:
+                        gamesimul.player1.newRack(gamesimul.bag)
+
+
+
+                else:
+
+                    if len(gamesimul.listValidMoves) > 0:
+                        for tile in isLegalmove:
+                            gamesimul.place(tile[0], tile[1], tile[2], tile[3])
+                            gamesimul.player2.delRack(tile[0], tile[1])
+                        gamesimul.player2.addTileToRack(gamesimul.bag)
+                        gamesimul.listValidMovePlayer2()
+                        next_state = convertToBoard(next_state, gamesimul.player2.getRack())
+                    else:
+                        gamesimul.player2.newRack(gamesimul.bag)
+
+                gridAll = next_state
+                statesignal = torch.tensor(gridAll, dtype=torch.float32)
+                action_probs, value = cnn(statesignal)
+
+                valid_moves = get_valid_moves(gamesimul)
+
+                action_probs = action_probs * valid_moves  # mask invalid moves
+
+                action_probs /= torch.sum(action_probs)
+
+                node.expand(next_state, parent.to_play * -1, torch.squeeze(action_probs, 0))
+
+            self.backpropagate(search_path, value, parent.to_play * -1)
+        end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+        total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
+                                                                                                    '%H:%M:%S'))
+        print('total_time:' + str(total_time))
+        return root
+    def runmulti(self, state, to_play,action,game,numsimul):
+      with torch.no_grad():
+          root = Node(0, to_play,action)
+          statesignal = torch.tensor(state, dtype=torch.float32)
+          action_probs, value = cnn(statesignal)
+          gamesimul=game.__copy__()
+          valid_moves = get_valid_moves(gamesimul)
+          action_probs = action_probs * valid_moves # mask invalid moves
+          action_probs /= torch.sum(action_probs)
+
+          root.expand(state, to_play, torch.squeeze(action_probs,0))
+          if len(root.children)>0:
+              arg_list=[]
+              for nodechildren in sorted(root.children.items(), key=lambda x:x[1].prior ,reverse=True)[0:5]:
+                arg_list.append([nodechildren[1],1,0,gamesimul,numsimul])
+              with multiprocessing.Pool(processes=8) as pool:
+                  pool.starmap(self.run_mcts, arg_list)
+                  pool.close()  # no more tasks
+                  pool.join()  # wrap up current tasks
+
           else:
               return root
 
@@ -1177,7 +1363,7 @@ def local(num_game):
                 if len(game.listValidMoves) > 0:
                     gridnorme = convertToBoard(gridnorme, game.player1.getRack())
 
-                    actions = mcts.run(gridnorme, 1, 0, game,600)
+                    actions = mcts.run(gridnorme, 1, 0, game.__copy__(),600)
                     # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                     #                        dtype=torch.float32).cuda()
                     childvisitcount = torch.tensor(
@@ -1322,7 +1508,7 @@ def localevaluation(num_game):
                 if len(game.listValidMoves) > 0:
                     gridnorme = convertToBoard(gridnorme, game.player1.getRack())
 
-                    actions = mcts.run(gridnorme, 1, 0, game,600)
+                    actions = mcts.run(gridnorme, 1, 0, game.__copy__(),600)
                     # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                     #                        dtype=torch.float32).cuda()
                     childvisitcount = torch.tensor(
@@ -1510,21 +1696,17 @@ def loadbrain1():
     cnn = ConnectNet()
     cnn.init_weights()
     # cnn_iter1 = ConnectNet().to(cuda0)
-
     if os.path.isfile('bestrandom.pth'):
         print("=> loading checkpoint... ")
         # checkpoint = torch.load('bestrandom.pth', map_location=cuda0)
         checkpoint = torch.load('bestrandom.pth')
         cnn.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-
-
-
-
-
         print("done !")
     else:
         print("no checkpoint found...")
+
+
 
 
 
