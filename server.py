@@ -6,9 +6,11 @@ import numpy as np
 import torch
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
+from torch import nn
 
 import GameNumpy as newGame
-from qwirckleAlphazero import convertToBoard, convertToRealTiles, mcts, loadbrain1
+from cnn import loadbrain1
+from qwirckleAlphazero import convertToBoard, convertToRealTiles, mcts, cnn
 
 app = Flask(__name__)
 CORS(app)
@@ -21,6 +23,12 @@ import json
 loadbrain1()
 import jsonpickle
 tileonboard = []
+
+num_params = sum(p.numel() for p in cnn.parameters())
+print(f"Number of parameters after reduction: {num_params}")
+
+
+# Use the pruned model
 
 
 
@@ -85,6 +93,76 @@ def play():
 
         else:
             game.player1.newRack(game.bag)
+            game.round += 1
+
+    end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+    total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
+                                                                                                '%H:%M:%S'))
+    print('total_time:' + str(total_time))
+    empJSON = jsonpickle.encode(tileonboard, unpicklable=False)
+    return empJSON
+
+@app.route("/random", methods=['GET'])
+@cross_origin()
+def playrandom():
+    global gridnorme, tileonboard,game
+    if request.method == 'GET':
+        game.listValidMovePlayer2All()
+        if len(game.listValidMoves) > 0:
+            gridnorme = convertToBoard(gridnorme, game.player2.getRack())
+            to_play=1
+            action=0
+            numsimul=1
+            start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+            with multiprocessing.Pool(processes=8) as pool:
+                results = pool.starmap(
+                    mcts.run,
+                    [( gridnorme.copy(), to_play, action, game.__copy__(), numsimul,i) for i in range(5)]
+                )
+
+            # get the results from the multiprocessing pool
+            actions = sorted(results, key=lambda x: x.prior, reverse=True)[0:1][0]
+
+            # close the multiprocessing pool
+            pool.close()
+            # actions=mcts.run(gridnorme,1,0,game.__copy__(),50)
+
+
+            # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
+            #                        dtype=torch.float32).cuda()
+            childvisitcount = torch.tensor(
+                [[actions.children[visit].visit_count] for visit in actions.children],
+                dtype=torch.float32)
+            childvisitcount /= torch.sum(childvisitcount)
+            # game.setActionprob()
+            actionPosition = list(actions.children.keys())[
+                torch.sort(childvisitcount, descending=True).indices[0]]
+            boardPlay = game.actionprob[actionPosition]
+
+            boardPlay = convertToRealTiles(boardPlay,game)
+            if boardPlay in game.listValidMoves:
+                for tile in boardPlay:
+                    if game.place(tile[0], tile[1], tile[2], tile[3]) :
+                        tileonboard.append({'tile':[int(tile[0]),int(tile[1]),int(tile[2]), int(tile[3])]})
+                        game.player2.delRack(tile[0], tile[1])
+                    else:
+                        game.round += 1
+                        break
+
+
+                game.player2.addTileToRack(game.bag)
+
+                game.round = 0
+
+
+                game.player2.point += game.getpoint([[x[2], x[3]] for x in boardPlay])
+            else:
+                game.player2.newRack(game.bag)
+                game.round += 1
+
+
+        else:
+            game.player2.newRack(game.bag)
             game.round += 1
 
     end_time = datetime.datetime.now().time().strftime('%H:%M:%S')

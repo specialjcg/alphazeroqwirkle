@@ -15,6 +15,7 @@ from torch.cuda.amp import GradScaler
 import GameNumpy as newGame
 from TileColor import TileColor
 from TileShape import TileShape
+from qwirckleAlphazero import ConnectNetiter
 
 cuda0 = torch.device('cuda:0')
 
@@ -651,7 +652,7 @@ class ConnectNet(nn.Module):
 cnn = ConnectNet()
 cnn.init_weights()
 #cnn_iter1 = ConnectNet().to(cuda0)
-cnn_iter1 = ConnectNet()
+cnn_iter1 = ConnectNetiter()
 cnn_iter1.init_weights()
 n_step = 0
 
