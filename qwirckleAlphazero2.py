@@ -15,7 +15,7 @@ from torch.cuda.amp import GradScaler
 import GameNumpy as newGame
 from TileColor import TileColor
 from TileShape import TileShape
-from qwirckleAlphazero import ConnectNetiter
+from cnn_iter import ConnectNetiter
 
 cuda0 = torch.device('cuda:0')
 

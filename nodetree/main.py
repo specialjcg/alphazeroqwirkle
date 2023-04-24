@@ -2,9 +2,8 @@
 
 # Press Maj+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-from qwirckleAlphazero import local, loadcsv, loadbrain1, savebrain1, savebraindequeZero, savebraindeque, loadraindeque, \
-    loadbrain2
-
+from qwirckleAlphazero import local, loadcsv, loadbrain1, savebrain1, savebraindequeZero, savebraindeque, loadraindeque
+from loadbrain2 import loadbrain2
 
 from graphviz import Digraph
 class Node:

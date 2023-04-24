@@ -1,4 +1,3 @@
-import concurrent.futures
 import os
 import pickle
 from collections import namedtuple, deque
@@ -7,16 +6,22 @@ import numpy as np
 import torch
 
 import GameNumpy as newGame
+from MCTS_iter import MCTS_iter
+from Node import Node
 from TileColor import TileColor
 from TileShape import TileShape
 from cnn import ConnectNet
+from convertToBoard import convertToBoard
+from get_canonical_board import get_canonical_board
+from get_next_state import get_next_state
+from get_reward_for_player import get_reward_for_player
+from get_validMoves import get_valid_moves
 
 cuda0 = torch.device('cuda:0')
 
 global epoch
 epoch = 0
 import random
-import math
 import logging
 
 log = logging.getLogger('werkzeug')
@@ -29,13 +34,6 @@ log.setLevel(logging.ERROR)
 #     nextBoard[actions_array[:, 0]-1, actions_array[:, 2]+22, actions_array[:, 3]+22] = playerval
 #     nextBoard[5+actions_array[:, 1], actions_array[:, 2]+22, actions_array[:, 3]+22] = playerval
 #     return nextBoard
-def boardPlayToGridNorm(board, actions, playerval):
-    nextBoard = np.zeros_like(board)
-    nextBoard[:, :, :] = board[:, :, :]
-    actions_array = np.array(actions)
-    nextBoard[actions_array[:, 0] - 1, actions_array[:, 2] + 22, actions_array[:, 3] + 22] = playerval
-    nextBoard[5 + actions_array[:, 1], actions_array[:, 2] + 22, actions_array[:, 3] + 22] = playerval
-    return nextBoard
 
 
 # def boardPlayToGridNorm(board, actions, playerval):
@@ -83,15 +81,6 @@ def gridNormToBoardPlay(gridnorme):
 #                 return boardPlayToGridNorm(board, tiles, 1), -player, tiles
 #
 #     return board, -player,[]
-
-
-def get_next_state(board, player, action, game):
-    nextState = list(game.actionprob[action])
-    for tiles in game.listValidMoves:
-        if all(abs(tile[2]) < 22 and abs(tile[3]) < 22 for tile in tiles) and nextState == [[tile[0], tile[1]] for tile
-                                                                                            in tiles]:
-            return boardPlayToGridNorm(board, tiles, 1), -player, tiles
-    return board, -player, []
 
 
 # def get_next_state(board, player, action, game):
@@ -148,28 +137,6 @@ def findindexinActionprob(game):
     return valid_moves
 
 
-def findindexinActionprobnumpy(game):
-    valid_moves = np.zeros(23436)
-    for i in game.listValidMoves:
-        valprob = [[testnumpy[0], testnumpy[1]] for testnumpy in i]
-        for index, x in enumerate(game.actionprob):
-            if x == tuple(valprob):
-                valid_moves[index] = 1
-    return valid_moves
-
-
-def get_valid_moves(game):
-    return findindexinActionprobnumpy(game)
-
-
-def get_reward_for_player(board, player):
-    return 0
-
-
-def get_canonical_board(board, player):
-    return player * board
-
-
 # In[245]:
 
 
@@ -185,273 +152,6 @@ def add_dirichlet_noise(child_priors):
     return (child_priors)
 import torch
 from torch import nn as nn
-from torch.nn import functional as F
-
-
-class ConvBlockiter(nn.Module):
-    def __init__(self):
-        super(ConvBlockiter, self).__init__()
-
-        self.conv1 = nn.Conv2d(26, 1024 , kernel_size=12, stride=1, padding=1)
-        self.bn1 = nn.BatchNorm2d(1024)
-        self.conv2 = nn.Conv2d(1024, 35, kernel_size=12, stride=1, padding=1)
-        self.bn2 = nn.BatchNorm2d(35)
-
-
-
-
-    def forward(self, s):
-        s = s.view(-1,26, 54, 54)  # batch_size x channels x board_x x board_y
-        s = F.leaky_relu(self.bn1(self.conv1(s)))
-        s = F.leaky_relu(self.bn2(self.conv2(s)))
-
-        return s
-
-
-class ResBlockiter(nn.Module):
-    def __init__(self, inplanes=35  , planes=35, stride=1, downsample=None):
-        super(ResBlockiter, self).__init__()
-        #self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
-        #                       padding=1, bias=False).cuda()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
-        #self.bn1 = nn.BatchNorm2d(planes).cuda()
-        self.bn1 = nn.BatchNorm2d(planes)
-        #self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-        #                       padding=1, bias=False).cuda()
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
-        #self.bn2 = nn.BatchNorm2d(planes).cuda()
-        #self.drp = nn.Dropout(0.3).cuda()
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.drp = nn.Dropout(0.3)
-
-    def forward(self, x):
-        residual = x
-        out = self.conv1(x)
-        out = F.leaky_relu(self.bn1(out))
-        out = self.drp(out)
-        out = self.conv2(out)
-        out = F.leaky_relu(self.bn2(out))
-        out = self.drp(out)
-        out += residual
-        out = F.leaky_relu(out)
-        return out
-
-
-class OutBlockiter(nn.Module):
-    # shape=6*7*32
-    shape1 = 45360
-    # shape = 24156*25*25
-    shape = 23436
-
-    def __init__(self):
-        super(OutBlockiter, self).__init__()
-
-
-        self.fc1 = nn.Linear(self.shape1,1024)
-        self.fc2 = nn.Linear(1024, 1)
-        self.drp = nn.Dropout(0.3)
-
-        self.fc = nn.Linear(self.shape1, self.shape1)
-        self.fcinter = nn.Linear(self.shape1, self.shape)
-        self.logsoftmax = nn.LogSoftmax(dim=1)
-
-    def forward(self, s):
-        v = s.view(-1, self.shape1)  # batch_size X channel X height X width
-        v = self.drp(F.leaky_relu(self.fc1(v)))
-        v = torch.tanh(self.fc2(v))
-
-
-
-
-        p = s.view(-1, self.shape1)
-        p = self.drp(F.leaky_relu(self.fc(p)))
-        p = self.fcinter(p)
-        p = self.logsoftmax(p).exp()
-        return p, v
-
-
-class ConnectNetiter(nn.Module):
-    def __init__(self):
-        super(ConnectNetiter, self).__init__()
-        #self.conv = ConvBlock().cuda()
-        self.conv = ConvBlockiter()
-        for block in range(30):
-            #setattr(self, "res_%i" % block, ResBlock().cuda())
-            setattr(self, "res_%i" % block, ResBlockiter())
-        self.outblock = OutBlockiter()
-
-    def forward(self, s):
-        s = self.conv(s)
-        for block in range(30):
-            s = getattr(self, "res_%i" % block)(s)
-        s = self.outblock(s)
-        return s
-
-    def init_weights(self):
-        """
-        Initialize weights of layers using Kaiming Normal (He et al.) as argument of "Apply" function of
-        "nn.Module"
-        :param m: Layer to initialize
-        :return: None
-        """
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-        # if isinstance(self.conv.conv1, nn.Conv2d):
-        #     torch.nn.init.xavier_uniform_(self.conv.conv1.weight)
-        #     torch.nn.init.zeros_(self.conv.conv1.bias)
-        # if isinstance(self.conv.bn1, nn.BatchNorm2d):
-        #     torch.nn.init.normal_(self.conv.bn1.weight.data, mean=1, std=0.02)
-        #     torch.nn.init.constant_(self.conv.bn1.bias.data, 0)
-        # if isinstance(self.conv.conv2, nn.Conv2d):
-        #     torch.nn.init.xavier_uniform_(self.conv.conv2.weight)
-        #     torch.nn.init.zeros_(self.conv.conv2.bias)
-        # if isinstance(self.conv.bn2, nn.BatchNorm2d):
-        #     torch.nn.init.normal_(self.conv.bn2.weight.data, mean=1, std=0.02)
-        #     torch.nn.init.constant_(self.conv.bn2.bias.data, 0)
-        # if isinstance(self.conv.conv3, nn.Conv2d):
-        #     torch.nn.init.xavier_uniform_(self.conv.conv3.weight)
-        #     torch.nn.init.zeros_(self.conv.conv3.bias)
-        # if isinstance(self.conv.bn3, nn.BatchNorm2d):
-        #     torch.nn.init.normal_(self.conv.bn3.weight.data, mean=1, std=0.02)
-        #     torch.nn.init.constant_(self.conv.bn3.bias.data, 0)
-        # if isinstance(self.conv.conv4, nn.Conv2d):
-        #     torch.nn.init.xavier_uniform_(self.conv.conv4.weight)
-        #     torch.nn.init.zeros_(self.conv.conv4.bias)
-        # if isinstance(self.conv.bn4, nn.BatchNorm2d):
-        #     torch.nn.init.normal_(self.conv.bn4.weight.data, mean=1, std=0.02)
-        #     torch.nn.init.constant_(self.conv.bn4.bias.data, 0)
-        # if isinstance(self.conv.conv5, nn.Conv2d):
-        #     torch.nn.init.xavier_uniform_(self.conv.conv5.weight)
-        #     torch.nn.init.zeros_(self.conv.conv5.bias)
-        # if isinstance(self.conv.bn5, nn.BatchNorm2d):
-        #     torch.nn.init.normal_(self.conv.bn5.weight.data, mean=1, std=0.02)
-        #     torch.nn.init.constant_(self.conv.bn5.bias.data, 0)
-
-
-
-class Node:
-    def __init__(self, prior, to_play, action):
-        self.visit_count = 0
-        self.to_play = to_play
-        self.prior = prior
-        self.value_sum = 0
-        self.children = {}
-        self.state = None
-        self.action = action
-
-    def expanded(self):
-        return len(self.children) > 0
-
-    def value(self):
-        if self.visit_count == 0:
-            return 0
-        return self.value_sum / self.visit_count
-
-    # def select_child(self,game):
-    #     """
-    #     Select the child with the highest UCB score.
-    #     """
-    #     best_score = -np.inf
-    #     best_action = -1
-    #     best_child = None
-    #
-    #     for action,child in enumerate(self.children.items()):
-    #         score = ucb_score(self, child[1])
-    #         if not isFinish(self.state,game):
-    #             if score> best_score:
-    #                 best_score = score
-    #                 best_child = child[1]
-    #                 best_action=child[0]
-    #
-    #     return best_action,best_child
-
-    # def ucb_score( self,child):
-    #     """
-    #     The score for an action that would transition between the parent and child.
-    #     """
-    #     prior_score = child.prior * math.sqrt(self.visit_count) / (child.visit_count + 1)
-    #     if (child.visit_count > 0) and (child.prior > 0):
-    #         # The value of the child is from the perspective of the opposing player
-    #         value_score = -child.value()
-    #     else:
-    #         value_score = 0
-    #
-    #     return value_score + prior_score
-    # def select_child(self, game):
-    #     """
-    #     Select the child with the highest UCB score.
-    #     """
-    #     if not self.children:
-    #         return None
-    #
-    #     exploration_weight = 1.4  # tweakable parameter
-    #     best_action, best_child = max(self.children.items(),
-    #                                   key=lambda item: self.ucb_score(item[1]) + exploration_weight * math.sqrt(
-    #                                       self.visit_count) * item[1].prior)
-    #
-    #     return best_action, best_child
-    def ucb_score(parent, child):
-        """
-        The score for an action that would transition between the parent and child.
-        """
-        prior_score = child.prior * math.sqrt(parent.visit_count) / (child.visit_count + 1)
-        if (child.visit_count > 0) and (child.prior > 0):
-            # The value of the child is from the perspective of the opposing player
-            value_score = -child.value()
-        else:
-            value_score = 0
-
-        return value_score + prior_score
-
-    def select_child(self, game):
-        """
-        Select the child with the highest UCB score.
-        """
-        if not self.children:
-            return None
-
-        exploration_weight = 1.4  # tweakable parameter
-        best_action, best_child = max(self.children.items(),
-                                      key=lambda item: self.ucb_score(item[1]) + exploration_weight * math.sqrt(
-                                          self.visit_count) * item[1].prior)
-
-        return best_action, best_child
-
-    def expand(self, state, to_play, action_probs):
-        """
-        We expand a node and keep track of the prior policy probability given by neural network choice 5 first
-        """
-        self.to_play = to_play
-        self.state = state
-        indiceStateChildren = torch.sort(action_probs, descending=True).indices
-
-        for a, prob in enumerate(action_probs):
-            if prob > 0.0001:
-                self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,
-                                        action=indiceStateChildren[a].item())
-
-    def __repr__(self):
-        """
-        Debugger pretty print node info
-        """
-        prior = "{0:.2f}".format(self.prior)
-        return "{} Prior: {} Count: {} Value: {}".format(self.state.__str__(), prior, self.visit_count, self.value())
-
-    def actionCouldWin(self, state, param):
-        return not isFinish(state)
-
-    def copy(self):
-        node = Node(self.prior, self.to_play, self.action)
-        node.visit_count = self.visit_count
-        node.state = self.state
-        node.children = self.children.copy()
-        return node
 
 
 # def convertToBoard(state, racks):
@@ -462,20 +162,13 @@ class Node:
 #         nextBoard[18+rack[1]][0,i]=1
 #         i+=1
 #     return nextBoard
-def convertToBoard(state, racks):
-    nextBoard = np.zeros_like(state)
-    nextBoard[:12, :] = state[:12, :]
-    for rack in racks:
-        nextBoard[12 + rack[0], 0:len(rack)] = 1
-        nextBoard[18 + rack[1], 0:len(rack)] = 1
-    return nextBoard
 
 
 import datetime
 import multiprocessing
 
 
-class MCTS:
+class MCTSMultiprocess:
 
     def backpropagate(self, search_path, value, to_play):
         """
@@ -485,14 +178,27 @@ class MCTS:
         for node in reversed(search_path):
             node.value_sum += value if node.to_play == to_play else -value
             node.visit_count += 1
-
-    def run(self, state, to_play, action, gamesimul, numsimul, indexprocess):
+    def run(self, state, to_play, action, game,numsimul, indexprocess):
         with torch.no_grad():
+            #   gridnormeOne = np.zeros(shape=(26,54,54))
+            #   gridnormenegOne = np.zeros(shape=(6, 7))
+            #   gridnormeZero = np.zeros(shape=(6, 7))
             root = Node(0, to_play, action)
+            #   convert_zero(state, gridnormeZero)
+            #   convert_one(state, gridnormeOne)
+            #   convert_neg_one(state, gridnormenegOne)
+
+            # statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
             statesignal = torch.tensor(state, dtype=torch.float32)
             action_probs, value = cnn(statesignal)
+            gamesimul = game.__copy__()
+            # gamesimul.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
             valid_moves = get_valid_moves(gamesimul)
+
+            # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
             action_probs = action_probs * valid_moves  # mask invalid moves
+            # action_probs = add_dirichlet_noise(action_probs)
+
             action_probs /= torch.sum(action_probs)
 
             root.expand(state, to_play, torch.squeeze(action_probs, 0))
@@ -507,11 +213,10 @@ class MCTS:
             root = rootcopy.copy()
             if len(root.children) > 0:
 
-                # for i in range(777):
+                start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
 
-                i = 0
-                while i < numsimul:
-                    i += 1
+                # for i in range(777):
+                for i in range(numsimul):
 
                     node = root.copy()
                     search_path = [node]
@@ -562,51 +267,122 @@ class MCTS:
                                 gamesimul.player2.newRack(gamesimul.bag)
 
                         gridAll = next_state
+                        # statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
                         statesignal = torch.tensor(gridAll, dtype=torch.float32)
                         action_probs, value = cnn(statesignal)
 
                         valid_moves = get_valid_moves(gamesimul)
 
+                        # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
                         action_probs = action_probs * valid_moves  # mask invalid moves
+                        # action_probs = add_dirichlet_noise(action_probs)
 
                         action_probs /= torch.sum(action_probs)
 
                         node.expand(next_state, parent.to_play * -1, torch.squeeze(action_probs, 0))
 
                     self.backpropagate(search_path, value, parent.to_play * -1)
-
-                return root
-            else:
-                return root
-
-    def run_mctsmulti(self, state, to_play, action, game, num_simul, num_processes):
-        with torch.no_grad():
-            root = Node(0, to_play, action)
-            statesignal = torch.tensor(state, dtype=torch.float32)
-            action_probs, value = cnn(statesignal)
-            game_simul = game.__copy__()
-            valid_moves = get_valid_moves(game_simul)
-            action_probs = action_probs * valid_moves  # mask invalid moves
-            action_probs /= torch.sum(action_probs)
-
-            root.expand(state, to_play, torch.squeeze(action_probs, 0))
-            if len(root.children) > 0:
-                start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
-                args_list = []
-                for nodechildren in sorted(root.children.items(), key=lambda x: x[1].prior, reverse=True)[0:5]:
-                    rootcopy = root.copy()
-                    rootcopy.children = {}
-                    rootcopy.children[nodechildren[0]] = nodechildren[1]
-                    args_list.append(rootcopy)
-                # Parallelize the simulations
-                with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
-                    with multiprocessing.Pool(processes=8) as pool:
-                        results = list(pool.map(self.run_mcts, [args_list[0], 1, 0, game_simul, num_simul] * 8))
                 end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
                 total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
                                                                                                             '%H:%M:%S'))
-                print('total_time: ' + str(total_time))
-            return root
+                print('total_time:' + str(total_time))
+                return root
+            else:
+                return root
+    # def run(self, state, to_play, action, gamesimul, numsimul, indexprocess):
+    #     with torch.no_grad():
+    #         root = Node(0, to_play, action)
+    #         statesignal = torch.tensor(state, dtype=torch.float32)
+    #         action_probs, value = cnn(statesignal)
+    #         valid_moves = get_valid_moves(gamesimul)
+    #         action_probs = action_probs * valid_moves  # mask invalid moves
+    #         action_probs /= torch.sum(action_probs)
+    #
+    #         root.expand(state, to_play, torch.squeeze(action_probs, 0))
+    #         i = 0
+    #         rootcopy = root.copy()
+    #         for nodechildren in sorted(root.children.items(), key=lambda x: x[1].prior, reverse=True)[0:5]:
+    #             if (i == indexprocess):
+    #                 rootcopy.children = {}
+    #                 rootcopy.children[nodechildren[0]] = nodechildren[1]
+    #                 break
+    #             i += 1
+    #         root = rootcopy.copy()
+    #         if len(root.children) > 0:
+    #
+    #             # for i in range(777):
+    #
+    #             i = 0
+    #             while i < numsimul:
+    #                 i += 1
+    #
+    #                 node = root.copy()
+    #                 search_path = [node]
+    #
+    #                 # SELECT
+    #                 while node.expanded():
+    #                     action, node = node.select_child(gamesimul)
+    #                     search_path.append(node)
+    #
+    #                 parent = search_path[-2]
+    #                 state = parent.state
+    #                 # Now we're at a leaf node and we would like to expand
+    #                 # Players always play from their own perspective
+    #
+    #                 next_state, _, isLegalmove = get_next_state(state, player=to_play, action=action, game=gamesimul)
+    #                 # Get the board from the perspective of the other player
+    #                 next_state = get_canonical_board(next_state, player=-to_play)
+    #
+    #                 # The value of the new state from the perspective of the other player
+    #                 value = get_reward_for_player(next_state, player=to_play)
+    #                 if value == 0 and len(isLegalmove) != 0:
+    #                     # If the game has not ended:
+    #                     # EXPAND
+    #                     if (parent.to_play == 1):
+    #                         if len(gamesimul.listValidMoves) > 0:
+    #                             for tile in isLegalmove:
+    #                                 gamesimul.place(tile[0], tile[1], tile[2], tile[3])
+    #                                 gamesimul.player1.delRack(tile[0], tile[1])
+    #                             gamesimul.player1.addTileToRack(gamesimul.bag)
+    #                             gamesimul.listValidMovePlayer1()
+    #                             next_state = convertToBoard(next_state, gamesimul.player1.getRack())
+    #
+    #                         else:
+    #                             gamesimul.player1.newRack(gamesimul.bag)
+    #
+    #
+    #
+    #                     else:
+    #
+    #                         if len(gamesimul.listValidMoves) > 0:
+    #                             for tile in isLegalmove:
+    #                                 gamesimul.place(tile[0], tile[1], tile[2], tile[3])
+    #                                 gamesimul.player2.delRack(tile[0], tile[1])
+    #                             gamesimul.player2.addTileToRack(gamesimul.bag)
+    #                             gamesimul.listValidMovePlayer2()
+    #                             next_state = convertToBoard(next_state, gamesimul.player2.getRack())
+    #                         else:
+    #                             gamesimul.player2.newRack(gamesimul.bag)
+    #
+    #                     gridAll = next_state
+    #                     statesignal = torch.tensor(gridAll, dtype=torch.float32)
+    #                     action_probs, value = cnn(statesignal)
+    #
+    #                     valid_moves = get_valid_moves(gamesimul)
+    #
+    #                     action_probs = action_probs * valid_moves  # mask invalid moves
+    #
+    #                     action_probs /= torch.sum(action_probs)
+    #
+    #                     node.expand(next_state, parent.to_play * -1, torch.squeeze(action_probs, 0))
+    #
+    #                 self.backpropagate(search_path, value, parent.to_play * -1)
+    #
+    #             return root
+    #         else:
+    #             return root
+
+
 
     def run_mcts(self, root, to_play, action, gamesimul, numsimul):
         i = 0
@@ -681,143 +457,9 @@ class MCTS:
         print('total_time:' + str(total_time))
         return root
 
-    def runmulti(self, state, to_play, action, game, numsimul):
-        with torch.no_grad():
-            root = Node(0, to_play, action)
-            statesignal = torch.tensor(state, dtype=torch.float32)
-            action_probs, value = cnn(statesignal)
-            gamesimul = game.__copy__()
-            valid_moves = get_valid_moves(gamesimul)
-            action_probs = action_probs * valid_moves  # mask invalid moves
-            action_probs /= torch.sum(action_probs)
-
-            root.expand(state, to_play, torch.squeeze(action_probs, 0))
-            if len(root.children) > 0:
-                arg_list = []
-                for nodechildren in sorted(root.children.items(), key=lambda x: x[1].prior, reverse=True)[0:5]:
-                    arg_list.append([nodechildren[1], 1, 0, gamesimul, numsimul])
-                with multiprocessing.Pool(processes=8) as pool:
-                    pool.starmap(self.run_mcts, arg_list)
-                    pool.close()  # no more tasks
-                    pool.join()  # wrap up current tasks
-
-            else:
-                return root
-
-
-class MCTS_iter:
-
-    def backpropagate(self, search_path, value, to_play):
-        """
-        At the end of a simulation, we propagate the evaluation all the way up the tree
-        to the root.
-        """
-        for node in reversed(search_path):
-            node.value_sum += value if node.to_play == to_play else -value
-            node.visit_count += 1
-
-    def run(self, state, to_play, action, game):
-        with torch.no_grad():
-            #   gridnormeOne = np.zeros(shape=(26,54,54))
-            #   gridnormenegOne = np.zeros(shape=(6, 7))
-            #   gridnormeZero = np.zeros(shape=(6, 7))
-            root = Node(0, to_play, action)
-            #   convert_zero(state, gridnormeZero)
-            #   convert_one(state, gridnormeOne)
-            #   convert_neg_one(state, gridnormenegOne)
-
-            # statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-            statesignal = torch.tensor(state, dtype=torch.float32)
-            action_probs, value = cnn_iter1(statesignal)
-            gamesimul = game.__copy__()
-            gamesimul.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
-            valid_moves = get_valid_moves(gamesimul)
-
-            # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
-            action_probs = action_probs * valid_moves  # mask invalid moves
-            # action_probs = add_dirichlet_noise(action_probs)
-
-            action_probs /= torch.sum(action_probs)
-
-            root.expand(state, to_play, torch.squeeze(action_probs, 0))
-            if len(root.children) > 0:
-
-                start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
-
-                # for i in range(777):
-                for i in range(600):
-
-                    node = root.copy()
-                    search_path = [node]
-
-                    # SELECT
-                    while node.expanded():
-                        action, node = node.select_child(gamesimul)
-                        search_path.append(node)
-
-                    parent = search_path[-2]
-                    state = parent.state
-                    # Now we're at a leaf node and we would like to expand
-                    # Players always play from their own perspective
-
-                    next_state, _, isLegalmove = get_next_state(state, player=to_play, action=action, game=gamesimul)
-                    # Get the board from the perspective of the other player
-                    next_state = get_canonical_board(next_state, player=-to_play)
-
-                    # The value of the new state from the perspective of the other player
-                    value = get_reward_for_player(next_state, player=to_play)
-                    if value == 0 and len(isLegalmove) != 0:
-                        # If the game has not ended:
-                        # EXPAND
-                        if (parent.to_play == 1):
-                            if len(gamesimul.listValidMoves) > 0:
-                                for tile in isLegalmove:
-                                    gamesimul.place(tile[0], tile[1], tile[2], tile[3])
-                                    gamesimul.player1.delRack(tile[0], tile[1])
-                                gamesimul.player1.addTileToRack(gamesimul.bag)
-                                gamesimul.listValidMovePlayer1()
-                                next_state = convertToBoard(next_state, gamesimul.player1.getRack())
-
-                            else:
-                                gamesimul.player1.newRack(gamesimul.bag)
 
 
 
-                        else:
-
-                            if len(gamesimul.listValidMoves) > 0:
-                                for tile in isLegalmove:
-                                    gamesimul.place(tile[0], tile[1], tile[2], tile[3])
-                                    gamesimul.player2.delRack(tile[0], tile[1])
-                                gamesimul.player2.addTileToRack(gamesimul.bag)
-                                gamesimul.listValidMovePlayer2()
-                                next_state = convertToBoard(next_state, gamesimul.player2.getRack())
-                            else:
-                                gamesimul.player2.newRack(gamesimul.bag)
-
-                        gridAll = next_state
-                        # statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
-                        statesignal = torch.tensor(gridAll, dtype=torch.float32)
-                        action_probs, value = cnn_iter1(statesignal)
-
-                        valid_moves = get_valid_moves(gamesimul)
-
-                        # action_probs = action_probs * torch.tensor([valid_moves], dtype=torch.float32).cuda()
-                        action_probs = action_probs * valid_moves  # mask invalid moves
-                        # action_probs = add_dirichlet_noise(action_probs)
-
-                        action_probs /= torch.sum(action_probs)
-
-                        node.expand(next_state, parent.to_play * -1, torch.squeeze(action_probs, 0))
-
-                    self.backpropagate(search_path, value, parent.to_play * -1)
-                end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
-                total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
-                                                                                                            '%H:%M:%S'))
-                print('total_time:' + str(total_time))
-                return root
-            else:
-                return root
 class MCTS_eval:
 
     def backpropagate(self, search_path, value, to_play):
@@ -938,15 +580,14 @@ cnn = ConnectNet()
 cnn.init_weights()
 
 # cnn_iter1 = ConnectNet().to(cuda0)
-cnn_iter1 = ConnectNetiter()
-cnn_iter1.init_weights()
+
 n_step = 0
 
 
 Step = namedtuple('Step', ['state', 'action', 'reward'])
 from dataclasses import dataclass
 
-mcts = MCTS()
+mctsmultiprocess = MCTSMultiprocess()
 mctseval = MCTS_eval()
 mcts_iter = MCTS_iter()
 
@@ -969,7 +610,7 @@ loss = nn.BCEWithLogitsLoss()
 # optimizer = torch.optim.SGD(cnn.parameters(),lr=0.1,momentum=0.9,weight_decay=5e-4)
 # optimizer = torch.optim.SGD(cnn.parameters(), lr=0.01, momentum=0.9)
 optimizer = torch.optim.Adam(cnn.parameters(), lr=0.0001)
-optimizeriter = torch.optim.Adam(cnn_iter1.parameters(), lr=0.0001)
+
 reward = 0.0
 global gridnorme
 
@@ -1005,14 +646,6 @@ def contains(subseq, inseq):
 
 winner = 0
 
-
-def isFinish(gridnorme, game):
-    matrix = np.array(gridnorme)
-    # Count occurrence of element '3' in each column
-    count = np.count_nonzero(matrix == 1)
-    return game.bag.isEmpty() and (len(game.player1.rack) == 0 or len(game.player2.rack) == 0)
-
-
 epoch = 0
 
 memory = deque()
@@ -1027,29 +660,14 @@ def moyenne_glissante(valeurs, intervalle):
     return liste_moyennes
 
 
-class AlphaLoss(torch.nn.Module):
-    def __init__(self):
-        super(AlphaLoss, self).__init__()
-
-    def forward(self, y_value, value, y_policy, policy):
-        value_error = (value - y_value) ** 2
-        policy_error = torch.sum((-policy *
-                                  (1e-8 + y_policy.float()).float().log()), 1)
-        # total_error = (value_error.view(-1).float() + policy_error).mean()
-        total_error = (value_error + policy_error.unsqueeze(1)).mean()
-        return total_error
-
-
-
 global moyenneWinBlue, BATCH_SIZE, pi_losses, v_losses, acurracy, runningloss
-alphaloss = AlphaLoss()
-BATCH_SIZE = 16
+
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 
 sns.set()
 plt.figure()
-from IPython.display import clear_output
 
 moyenneWinBlue = []
 runningloss = []
@@ -1063,7 +681,6 @@ def savebraindequeZero():
     pickle.dump(memory, open('buffer.pkl', 'wb'))
     print("=> saving memory zero... ")
 
-
 def savebraindeque():
     import pickle
     global memory
@@ -1074,18 +691,8 @@ def savebraindeque():
     print("=> saving brainqueue... ")
 
 
-def loadraindeque():
-    import pickle
-    global memory
-    memory = []
-    import os, glob
-    for filename in glob.glob('buffer*.pkl'):
-        with open(os.path.join(os.getcwd(), filename), 'rb') as f:
-            tmp = pickle.load(f)
-            memory.extend(tmp)
-    f.close()
 
-    print("=> saving brainqueue... ")
+
 
 
 from torch.utils.data import Dataset
@@ -1134,81 +741,81 @@ def loadraindeque2():
     print("=> saving brainqueue2... ")
 
 
-def localtrain():
-    global maxWin, moyenneWinBlue, BATCH_SIZE, pi_losses, v_losses, acurracy, runningloss
-
-    cnn = ConnectNet()
-    cnn.init_weights()
-    optimizer = torch.optim.SGD(cnn.parameters(), lr=0.05)
-    # optimizer = torch.optim.Adam(cnn.parameters(), lr=0.00001)
-    batch_idx = 0
-    pi_losses = []
-    v_losses = []
-
-    while batch_idx < int(len(memory) / BATCH_SIZE):
-
-        sample_ids = np.random.randint(0, len(memory), BATCH_SIZE)
-        boards, pis, vs = list(zip(*[(memory[i]) for i in sample_ids]))
-        # boards = torch.FloatTensor(np.stack(boards,axis=0))
-        # boards = torch.FloatTensor(boards).cuda()
-
-        boardsAll = []
-        for board in boards:
-            last_signal = torch.tensor(board, dtype=torch.float32)
-            # last_signal = torch.FloatTensor(gridAll).cuda()
-
-            boardsAll.append(last_signal.reshape(26, 54, 54))
-        pisAll = []
-        for policy in pis:
-            # policy = torch.tensor(policy, dtype=torch.float32).cuda()
-
-            valid_moves = np.zeros(23436)
-            valid_moves[policy] = 1
-            policy = torch.tensor(valid_moves, dtype=torch.float32)
-            pisAll.append(policy)
-        vsAll = []
-        for value in vs:
-            value = torch.tensor(value, dtype=torch.float32)
-            # value = torch.tensor(value, dtype=torch.float32).cuda()
-            vsAll.append(value)
-
-        statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll])
-        # statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll]).cuda()
-
-        # target_pis =torch.FloatTensor([t.cpu().numpy() for t in pisAll]).cuda()
-        target_pis = torch.FloatTensor([t.detach().cpu().numpy() for t in pisAll])
-        # target_vs = torch.FloatTensor(vsAll).cuda().reshape(BATCH_SIZE,1)
-        target_vs = torch.FloatTensor(vsAll).reshape(BATCH_SIZE, 1)
-
-        # set_to_none=True here can modestly improve performance
-        # with torch.autocast(device_type='cpu', dtype=torch.bfloat16):
-        out_pi, out_v = cnn.forward(statesignal)
-        total_error = alphaloss(out_v, target_vs, out_pi, target_pis)
-
-        optimizer.zero_grad()
-        total_error.backward()
-
-        optimizer.step()
-        pi_losses.append(float(total_error))
-
-        batch_idx += 1
-        print('Policy Loss:{:.2f}'.format(np.mean(pi_losses)))
-
-        runningloss.append(np.mean(pi_losses))
-
-    clear_output(wait=True)
-    pal = sns.dark_palette('purple', 2)
-    ax = sns.lineplot(data=runningloss, palette=pal, color='red', alpha=.5, linewidth=2)
-    ax.legend(['loss'])
-    # Customise some display properties
-    ax.set_title('winblueloss')
-    ax.set_ylabel('%')
-    ax.set_xlabel(None)
-    ax.set(ylim=(0, max(runningloss)))
-    # Ask Matplotlib to show it
-    plt.show()
-    savebraintrain()
-    savebrain1()
+# def localtrain():
+#     global maxWin, moyenneWinBlue, BATCH_SIZE, pi_losses, v_losses, acurracy, runningloss
+#
+#     cnn = ConnectNet()
+#     cnn.init_weights()
+#     optimizer = torch.optim.SGD(cnn.parameters(), lr=0.05)
+#     # optimizer = torch.optim.Adam(cnn.parameters(), lr=0.00001)
+#     batch_idx = 0
+#     pi_losses = []
+#     v_losses = []
+#
+#     while batch_idx < int(len(memory) / BATCH_SIZE):
+#
+#         sample_ids = np.random.randint(0, len(memory), BATCH_SIZE)
+#         boards, pis, vs = list(zip(*[(memory[i]) for i in sample_ids]))
+#         # boards = torch.FloatTensor(np.stack(boards,axis=0))
+#         # boards = torch.FloatTensor(boards).cuda()
+#
+#         boardsAll = []
+#         for board in boards:
+#             last_signal = torch.tensor(board, dtype=torch.float32)
+#             # last_signal = torch.FloatTensor(gridAll).cuda()
+#
+#             boardsAll.append(last_signal.reshape(26, 54, 54))
+#         pisAll = []
+#         for policy in pis:
+#             # policy = torch.tensor(policy, dtype=torch.float32).cuda()
+#
+#             valid_moves = np.zeros(23436)
+#             valid_moves[policy] = 1
+#             policy = torch.tensor(valid_moves, dtype=torch.float32)
+#             pisAll.append(policy)
+#         vsAll = []
+#         for value in vs:
+#             value = torch.tensor(value, dtype=torch.float32)
+#             # value = torch.tensor(value, dtype=torch.float32).cuda()
+#             vsAll.append(value)
+#
+#         statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll])
+#         # statesignal = torch.FloatTensor([t.detach().cpu().numpy() for t in boardsAll]).cuda()
+#
+#         # target_pis =torch.FloatTensor([t.cpu().numpy() for t in pisAll]).cuda()
+#         target_pis = torch.FloatTensor([t.detach().cpu().numpy() for t in pisAll])
+#         # target_vs = torch.FloatTensor(vsAll).cuda().reshape(BATCH_SIZE,1)
+#         target_vs = torch.FloatTensor(vsAll).reshape(BATCH_SIZE, 1)
+#
+#         # set_to_none=True here can modestly improve performance
+#         # with torch.autocast(device_type='cpu', dtype=torch.bfloat16):
+#         out_pi, out_v = cnn.forward(statesignal)
+#         total_error = alphaloss(out_v, target_vs, out_pi, target_pis)
+#
+#         optimizer.zero_grad()
+#         total_error.backward()
+#
+#         optimizer.step()
+#         pi_losses.append(float(total_error))
+#
+#         batch_idx += 1
+#         print('Policy Loss:{:.2f}'.format(np.mean(pi_losses)))
+#
+#         runningloss.append(np.mean(pi_losses))
+#
+#     clear_output(wait=True)
+#     pal = sns.dark_palette('purple', 2)
+#     ax = sns.lineplot(data=runningloss, palette=pal, color='red', alpha=.5, linewidth=2)
+#     ax.legend(['loss'])
+#     # Customise some display properties
+#     ax.set_title('winblueloss')
+#     ax.set_ylabel('%')
+#     ax.set_xlabel(None)
+#     ax.set(ylim=(0, max(runningloss)))
+#     # Ask Matplotlib to show it
+#     plt.show()
+#     savebraintrain()
+#     savebrain1()
 
 
 def getRack1From(tile):
@@ -1289,7 +896,7 @@ def local(num_game):
                 if len(game.listValidMoves) > 0:
                     gridnorme = convertToBoard(gridnorme, game.player1.getRack())
 
-                    actions = mcts.run(gridnorme, 1, 0, game.__copy__(), 600,1)
+                    actions = mctseval.run(gridnorme, 1, 0, game.__copy__())
                     # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
                     #                        dtype=torch.float32).cuda()
                     childvisitcount = torch.tensor(
@@ -1551,16 +1158,7 @@ def savebrain1():
     print("=> saving checkpoint... ")
 
 
-def savebrainmultiprocess(cnn, optimizer):
-    global savefile
 
-    print("=> saving checkpoint... ")
-    checkpoint = {'model': cnn,
-                  'state_dict': cnn.state_dict(),
-                  'optimizer': optimizer.state_dict()}
-    torch.save(checkpoint, 'bestrandom.pth')
-
-    print("=> saving checkpoint... ")
 
 
 def savebraintrain():
@@ -1582,22 +1180,6 @@ def savegameboard(boardplay):
         blue_writer.writerow(boardplay)
 
     print("=> saving game... ")
-
-
-def loadbrain2():
-    global cnn_iter1, optimizeriter
-    cnn_iter1 = ConnectNetiter()
-    cnn_iter1.init_weights()
-    if os.path.isfile('bestrandomiter.pth'):
-        print("=> loading checkpoint... ")
-        # checkpoint = torch.load('bestrandom.pth', map_location=cuda0)
-        checkpoint = torch.load('bestrandomiter.pth')
-        cnn_iter1.load_state_dict(checkpoint['state_dict'])
-        optimizeriter.load_state_dict(checkpoint['optimizer'])
-
-        print("done !")
-    else:
-        print("no checkpoint found...")
 
 
 def loadcsv():

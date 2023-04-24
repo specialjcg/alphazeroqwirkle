@@ -9,10 +9,10 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+import cnn_iter
 from alphaloss import AlphaLoss
 
 BATCH_SIZE = 16
-from cnn import ConnectNet
 def savebrainmultiprocess(cnn, optimizer):
     global savefile
 
@@ -20,7 +20,7 @@ def savebrainmultiprocess(cnn, optimizer):
     checkpoint = {'model': cnn,
                   'state_dict': cnn.state_dict(),
                   'optimizer': optimizer.state_dict()}
-    torch.save(checkpoint, 'bestrandom.pth')
+    torch.save(checkpoint, 'bestrandomiter.pth')
 
     print("=> saving checkpoint... ")
 def loadraindeque():
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     epoch_number = 0
 
     EPOCHS = 5
-    cnn = ConnectNet()
+    cnn = cnn_iter.ConnectNet()
     cnn.init_weights()
     # optimizer = torch.optim.SGD(cnn.parameters(),lr=0.1,momentum=0.9,weight_decay=5e-4)
     # optimizer = torch.optim.SGD(cnn.parameters(), lr=0.01, momentum=0.9)

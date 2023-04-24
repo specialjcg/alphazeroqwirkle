@@ -13,7 +13,7 @@ from PlayerNumpy import PlayerNumpy
 from TileBinaire import TileBinaire
 from TileColor import TileColor
 from TileShape import TileShape
-from qwirckleAlphazero import findindexinActionprobnumpy
+from findindexActionprodnumpy import findindexinActionprobnumpy
 
 
 class TestClassBinaireDemoInstance:

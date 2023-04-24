@@ -6,11 +6,9 @@ import numpy as np
 from Bag import Game, Tile, Coordinate
 from TileColor import TileColor
 from TileShape import TileShape
-from qwirckleAlphazero import boardPlayToGridNorm, gridNormToBoardPlay, convertToBoard, gridNormtoRack, deepGridCopy
-
-
-
-
+from qwirckleAlphazero import gridNormToBoardPlay, gridNormtoRack, deepGridCopy
+from boardPlayToGridNorm import boardPlayToGridNorm
+from convertToBoard import convertToBoard
 
 
 class TestClassDemoInstance:

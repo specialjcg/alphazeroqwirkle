@@ -5,7 +5,8 @@
 import datetime
 from multiprocessing import Process
 
-from qwirckleAlphazero import local, loadbrain1, loadbrain2
+from qwirckleAlphazero import local, loadbrain1
+from loadbrain2 import loadbrain2
 import multiprocessing
 
 def print_hi(name):

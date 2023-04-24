@@ -9,14 +9,14 @@ from flask_cors import CORS, cross_origin
 from torch import nn
 
 import GameNumpy as newGame
-from cnn import loadbrain1
-from qwirckleAlphazero import convertToBoard, convertToRealTiles, mcts, cnn
+from qwirckleAlphazero import convertToRealTiles, mctsmultiprocess, cnn, loadbrain1, mctseval
+from convertToBoard import convertToBoard
 
 app = Flask(__name__)
 CORS(app)
 game = newGame.GameNumpy()
         #game.setActionprobtest()
-game.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
+# game.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
 gridnorme = np.zeros(shape=(26,54, 54))
 import json
 
@@ -36,18 +36,20 @@ print(f"Number of parameters after reduction: {num_params}")
 @cross_origin()
 def play():
     global gridnorme, tileonboard,game
+
     if request.method == 'GET':
+
         game.listValidMovePlayer1All()
         if len(game.listValidMoves) > 0:
             gridnorme = convertToBoard(gridnorme, game.player1.getRack())
             to_play=1
             action=0
-            numsimul=400
+            numsimul=500
             start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
             with multiprocessing.Pool(processes=8) as pool:
                 results = pool.starmap(
-                    mcts.run,
-                    [( gridnorme.copy(), to_play, action, game.__copy__(), numsimul,i) for i in range(5)]
+                    mctsmultiprocess.run,
+                    [( gridnorme.copy(), to_play, action, game, numsimul,i) for i in range(5)]
                 )
 
             # get the results from the multiprocessing pool
@@ -55,8 +57,12 @@ def play():
 
             # close the multiprocessing pool
             pool.close()
-            # actions=mcts.run(gridnorme,1,0,game.__copy__(),50)
 
+            # actions=mctseval.run(gridnorme,1,0,game.__copy__())
+            end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
+            total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
+                                                                                                        '%H:%M:%S'))
+            print('total_time_final:' + str(total_time))
 
             # actions = torch.tensor([actions.children[visit].visit_count for visit in actions.children],
             #                        dtype=torch.float32).cuda()
@@ -95,10 +101,7 @@ def play():
             game.player1.newRack(game.bag)
             game.round += 1
 
-    end_time = datetime.datetime.now().time().strftime('%H:%M:%S')
-    total_time = (datetime.datetime.strptime(end_time, '%H:%M:%S') - datetime.datetime.strptime(start_time,
-                                                                                                '%H:%M:%S'))
-    print('total_time:' + str(total_time))
+
     empJSON = jsonpickle.encode(tileonboard, unpicklable=False)
     return empJSON
 
@@ -116,7 +119,7 @@ def playrandom():
             start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
             with multiprocessing.Pool(processes=8) as pool:
                 results = pool.starmap(
-                    mcts.run,
+                    mctsmultiprocess.run,
                     [( gridnorme.copy(), to_play, action, game.__copy__(), numsimul,i) for i in range(5)]
                 )
 
