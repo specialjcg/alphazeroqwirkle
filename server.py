@@ -9,7 +9,7 @@ from flask_cors import CORS, cross_origin
 from torch import nn
 
 import GameNumpy as newGame
-from qwirckleAlphazero import convertToRealTiles, mctsmultiprocess, cnn, loadbrain1, mctseval
+from qwirckleAlphazero import convertToRealTiles, mctsmultiprocess, loadbrain1, cnn
 from convertToBoard import convertToBoard
 
 app = Flask(__name__)
@@ -24,12 +24,12 @@ loadbrain1()
 import jsonpickle
 tileonboard = []
 
-num_params = sum(p.numel() for p in cnn.parameters())
+num_params = sum(p.numel() for p in cnn.parameters() if p.requires_grad)
 print(f"Number of parameters after reduction: {num_params}")
 
 
 # Use the pruned model
-
+import time
 
 
 @app.route("/play", methods=['GET'])
@@ -40,6 +40,7 @@ def play():
     if request.method == 'GET':
 
         game.listValidMovePlayer1All()
+
         if len(game.listValidMoves) > 0:
             gridnorme = convertToBoard(gridnorme, game.player1.getRack())
             to_play=1
@@ -110,12 +111,15 @@ def play():
 def playrandom():
     global gridnorme, tileonboard,game
     if request.method == 'GET':
+
         game.listValidMovePlayer2All()
         if len(game.listValidMoves) > 0:
             gridnorme = convertToBoard(gridnorme, game.player2.getRack())
             to_play=1
             action=0
             numsimul=1
+
+
             start_time = datetime.datetime.now().time().strftime('%H:%M:%S')
             with multiprocessing.Pool(processes=8) as pool:
                 results = pool.starmap(

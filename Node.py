@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import torch
 
 from isFinish import isFinish
@@ -100,11 +101,46 @@ class Node:
         self.to_play = to_play
         self.state = state
         indiceStateChildren = torch.sort(action_probs, descending=True).indices
+        mask = action_probs > 0.0001
+        actions = mask.nonzero(as_tuple=True)[0]
 
-        for a, prob in enumerate(action_probs):
-            if prob > 0.0001:
-                self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,
-                                        action=indiceStateChildren[a].item())
+        # import time
+        #
+        # # Code before optimization
+        # start_time = time.time()
+        #
+        # for a in actions:
+        #     prob = action_probs[a]
+        #     self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,
+        #                             action=indiceStateChildren[a].item())
+        #
+        # end_time = time.time()
+        # print(f"Time taken (before optimization): {end_time - start_time} seconds")
+        #
+        # # Code after optimization
+        # start_time = time.time()
+
+        probs = action_probs[actions]
+        indices = indiceStateChildren[actions].tolist()
+        to_play = self.to_play * -1
+
+        self.children.update({
+            a.item(): Node(prior=prob.item(), to_play=to_play, action=indices[i])
+            for i, (a, prob) in enumerate(zip(actions, probs))
+        })
+
+        # end_time = time.time()
+        # print(f"Time taken (after optimization): {end_time - start_time} seconds")
+
+        # for a in actions:
+        #     prob = action_probs[a]
+        #     self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,
+        #                             action=indiceStateChildren[a].item())
+
+        # for a, prob in enumerate(action_probs):
+        #     if prob > 0.0001:
+        #         self.children[a] = Node(prior=prob.item(), to_play=self.to_play * -1,
+        #                                 action=indiceStateChildren[a].item())
 
     def __repr__(self):
         """

@@ -4,12 +4,12 @@ import torch
 
 from cnn_iter import ConnectNet
 
-
+cnn_iter1 = ConnectNet()
+cnn_iter1.init_weights()
 def loadbrain2():
     global cnn_iter1, optimizeriter
-    cnn_iter1 = ConnectNet()
-    cnn_iter1.init_weights()
-    optimizeriter = torch.optim.Adam(cnn_iter1.parameters(), lr=0.0001)
+
+    optimizeriter = torch.optim.Adam(cnn_iter1.parameters(), lr=0.000001)
     if os.path.isfile('bestrandomiter.pth'):
         print("=> loading checkpoint... ")
         # checkpoint = torch.load('bestrandom.pth', map_location=cuda0)

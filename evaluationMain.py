@@ -1,6 +1,6 @@
 # This is a sample Python script.
-from qwirckleAlphazero import loadbrain1, localevaluation, getmaxWin
 from loadbrain2 import loadbrain2
+from qwirckleAlphazero import loadbrain1, localevaluation, getmaxWin
 
 
 # Press Maj+F10 to execute it or replace it with your code.

@@ -11,9 +11,9 @@ from get_next_state import get_next_state
 from Node import Node
 from get_validMoves import get_valid_moves
 
-cnn_iter1 = ConnectNet()
-cnn_iter1.init_weights()
-class MCTS_iter:
+cnn = ConnectNet()
+cnn.init_weights()
+class MCTS_eval:
 
     def backpropagate(self, search_path, value, to_play):
         """
@@ -36,7 +36,7 @@ class MCTS_iter:
 
             # statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
             statesignal = torch.tensor(state, dtype=torch.float32)
-            action_probs, value = cnn_iter1(statesignal)
+            action_probs, value = cnn(statesignal)
             gamesimul = game.__copy__()
             gamesimul.actionprob = pickle.load(open('gameActionProb.pkl', 'rb'))
             valid_moves = get_valid_moves(gamesimul)
@@ -106,7 +106,7 @@ class MCTS_iter:
                         gridAll = next_state
                         # statesignal = torch.tensor([gridAll], dtype=torch.float32).cuda()
                         statesignal = torch.tensor(gridAll, dtype=torch.float32)
-                        action_probs, value = cnn_iter1(statesignal)
+                        action_probs, value = cnn(statesignal)
 
                         valid_moves = get_valid_moves(gamesimul)
 

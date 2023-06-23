@@ -2,6 +2,7 @@ import concurrent
 import itertools
 from functools import reduce
 
+import numba as nb
 import numpy as np
 import concurrent.futures
 
@@ -15,7 +16,10 @@ from collections import defaultdict
 import pickle
 
 from decompose_list import decompose_list
+from gameActionProb import GLOBAL_GAME_ACTION_PROB
 
+
+# Load the data from the pickle file
 
 class GameNumpy:
     def __init__(self):
@@ -31,10 +35,20 @@ class GameNumpy:
         self.player2.addTileToRack(self.bag)
         self.isvalid = True
         self.listValidMoves = []
-        self.actionprob= pickle.load(open('gameActionProb.pkl', 'rb'))
+        self.actionprob= GLOBAL_GAME_ACTION_PROB
         self.df1 = pd.DataFrame(self.actionprob).fillna(0)
-        self.df1 = self.df1.apply(lambda x: pd.Series(decompose_list(x)), axis=1).fillna(0)
+        # self.df1 = self.df1.apply(lambda x: pd.Series(decompose_list(x)), axis=1).fillna(0)
 
+        decomposed_rows = [decompose_list(row) for row in self.df1.values]
+
+        # Create a new DataFrame from the decomposed rows
+        decomposed_df = pd.DataFrame(decomposed_rows)
+
+        # Fill missing values with zero
+        decomposed_df.fillna(0, inplace=True)
+
+        # Assign the decomposed DataFrame back to self.df1
+        self.df1 = decomposed_df
     # def place(self, color, shape, posx, posy):
     #     x = posx + 54
     #     y = posy + 54
@@ -184,42 +198,8 @@ class GameNumpy:
                     self.listValidMoves.append(rackValidMove)
                     self.listValidMoves = self.unique(self.listValidMoves)
                 i += 1
-        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))
-    def listValidMovePlayer2All(self):
-        self.listValidMoves = []
-        inp_list = self.player2.getRackList()
-        permutations = [perm for i in range(1, len(inp_list) + 1) for perm in itertools.permutations(inp_list, r=i)]
-        if (len(permutations) > 1):
-            # permutations = np.unique(permutations)
-            # vfunc = np.vectorize(self.validTilePerùutation)
-            #
-            # permutations = permutations[np.where(vfunc(permutations) == True)]
-            permutations = np.unique(np.asarray(permutations,dtype=object))
-            valid_permutations = [p for p in permutations if self.validTilePerùutation(p)]
-            permutations = valid_permutations.copy()
-        if len(np.where(self.tilecolor != 0)[0]) > 0:
-            listNotZero = np.where(self.tilecolor != 0)
-            val = len(listNotZero[0])
+        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
 
-            [[self.permutationFromPositionTiletileleftAll(permut, listNotZero[0][x] - 54,
-                                                       listNotZero[1][x] - 54) for x in range(val)] for permut in
-             permutations]
-        else:
-            i = 0
-            while i < len(permutations):
-                self.deepBoardbinarryCopy()
-
-                isvalidTempory = True
-                for index, tile in enumerate(permutations[i]):
-                    isvalidTempory = isvalidTempory and self.placetempory(tile[0], tile[1], 0, index)
-
-                if isvalidTempory:
-                    rackValidMove = [[tile[0], tile[1], 0, index] for index, tile in
-                                     enumerate(permutations[i])]
-                    self.listValidMoves.append(rackValidMove)
-                    self.listValidMoves = self.unique(self.listValidMoves)
-                i += 1
-        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))
     def testplaceTile(self, permutation, posx, posy, sensx, sensy):
         self.deepBoardbinarryCopy()
         for index, tile in enumerate(permutation):
@@ -407,11 +387,12 @@ class GameNumpy:
                     self.listValidMoves.append(rackValidMove)
                     self.listValidMoves = self.unique(self.listValidMoves)
                 i += 1
-        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))
+        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))[:10]
     def listValidMovePlayer1All(self):
         self.listValidMoves = []
         inp_list = self.player1.getRackList()
         permutations = [perm for i in range(1, len(inp_list) + 1) for perm in itertools.permutations(inp_list, r=i)]
+
         if (len(permutations) > 1):
             # permutations = np.unique(permutations)
             # vfunc = np.vectorize(self.validTilePerùutation)
@@ -426,6 +407,43 @@ class GameNumpy:
 
             [[self.permutationFromPositionTiletileleftAll(permut, listNotZero[0][x] - 54,
                                                           listNotZero[1][x] - 54) for x in range(val)] for permut in
+             permutations]
+        else:
+            i = 0
+            while i < len(permutations):
+                self.deepBoardbinarryCopy()
+
+                isvalidTempory = True
+                for index, tile in enumerate(permutations[i]):
+                    isvalidTempory = isvalidTempory and self.placetempory(tile[0], tile[1], 0, index)
+
+                if isvalidTempory:
+                    rackValidMove = [[tile[0], tile[1], 0, index] for index, tile in
+                                     enumerate(permutations[i])]
+                    self.listValidMoves.append(rackValidMove)
+                    self.listValidMoves = self.unique(self.listValidMoves)
+                i += 1
+        self.listValidMoves = sorted(self.listValidMoves, key=lambda x: -len(x))
+
+
+    def listValidMovePlayer2All(self):
+        self.listValidMoves = []
+        inp_list = self.player2.getRackList()
+        permutations = [perm for i in range(1, len(inp_list) + 1) for perm in itertools.permutations(inp_list, r=i)]
+        if (len(permutations) > 1):
+            # permutations = np.unique(permutations)
+            # vfunc = np.vectorize(self.validTilePerùutation)
+            #
+            # permutations = permutations[np.where(vfunc(permutations) == True)]
+            permutations = np.unique(np.asarray(permutations,dtype=object))
+            valid_permutations = [p for p in permutations if self.validTilePerùutation(p)]
+            permutations = valid_permutations.copy()
+        if len(np.where(self.tilecolor != 0)[0]) > 0:
+            listNotZero = np.where(self.tilecolor != 0)
+            val = len(listNotZero[0])
+
+            [[self.permutationFromPositionTiletileleftAll(permut, listNotZero[0][x] - 54,
+                                                       listNotZero[1][x] - 54) for x in range(val)] for permut in
              permutations]
         else:
             i = 0
@@ -605,56 +623,137 @@ class GameNumpy:
         return newcopy
 
     def getpoint(self, tiles):
-        point=len(tiles)
-        if len(tiles) == 6:
-            point +=  6
-        for [x, y] in tiles:
-            x1 = x + 54
-            y1 = y + 54
-            test = True
-            test2=True
-            qwirkle = 0
-            for j in range(1, 7):
+        test=True
+        test2=True
+        point=0
 
-                if self.tilecolor[x1 - j, y1] != 0 and [x-1,y] not in tiles:
-                    qwirkle+=1
-                    point = point + 1
-                    test2 = False
-                else:
-                    if (qwirkle==5):
-                        point+=6
-                    break
-            qwirkle = 0
-            for j in range(1, 7):
-                if self.tilecolor[x1 + j, y1] != 0 and [x+1,y] not in tiles :
-                    qwirkle += 1
-                    point = point + 1
-                    test2 = False
-                else:
-                    if (qwirkle==5):
-                        point+=6
-                    break
-            qwirkle = 0
 
-            for j in range(1, 7):
-                if self.tilecolor[x1, y1 - j] != 0 and [x,y-1] not in tiles:
-                    qwirkle += 1
-                    point = point + 1
-                    test2 = False
-                else:
-                    if (qwirkle==5):
-                        point+=6
-                    break
+        if len(tiles)>1:
             qwirkle = 0
+            ymax = 0
+            ymin = 0
+            xmax = 0
+            xmin = 0
+            if (tiles[0][0]==tiles[1][0]):
+                x1 = tiles[0][0] + 54
+                y1 = tiles[0][1] + 54
+                for j in range(0, 7):
+                    if self.tilecolor[x1, y1 + j] != 0:
+                        ymax = y1 + j
+                    else:
+                        break
+                for j in range(0, 7):
+                    if self.tilecolor[x1, y1 - j] != 0:
+                        ymin = y1 - j
+                    else:
+                        break
+                point = ymax - ymin+1
+                if point== 6:
+                    point += 6
 
-            for j in range(1, 7):
-                if self.tilecolor[x1, y1 + j] != 0 and [x,y+1] not in tiles:
-                    qwirkle += 1
-                    point = point + 1
-                    test2 = False
+                for [x, y] in tiles:
+                    x1 = x + 54
+                    y1 = y + 54
+
+                    qwirkle = 0
+                    for j in range(1, 7):
+                        if self.tilecolor[x1-j, y1] != 0:
+                            qwirkle += 1
+                            point = point + 1
+                        else:
+                            break
+                    if qwirkle>0:
+                        point+=1
+                        qwirkle=0
+                    for j in range(1, 7):
+                        if self.tilecolor[x1+j, y1 ] != 0:
+                            qwirkle += 1
+                            point = point + 1
+
+                        else:
+                            break
+                    if qwirkle>0:
+                        point+=1
+                        qwirkle=0
+                return int(point)
+            else:
+                x1 = tiles[0][0] + 54
+                y1 = tiles[0][1] + 54
+                for j in range(0, 7):
+                    if self.tilecolor[x1+j, y1] != 0:
+                        xmax = x1 + j
+                    else:
+                        break
+                for j in range(0, 7):
+                    if self.tilecolor[x1-j, y1] != 0:
+                        xmin = x1 - j
+                    else:
+                        break
+                point = xmax - xmin+1
+                if xmax - xmin == 6:
+                    point += 6
+                for [x, y] in tiles:
+
+                    x1 = x + 54
+                    y1 = y + 54
+
+                    qwirkle = 0
+                    for j in range(1, 7):
+                        if self.tilecolor[x1, y1-j] != 0:
+                            qwirkle += 1
+                            point = point + 1
+                        else:
+                            break
+                    if qwirkle>0:
+                        point+=1
+                        qwirkle=0
+
+                    for j in range(1, 7):
+                        if self.tilecolor[x1, y1+j] != 0:
+                            qwirkle += 1
+                            point = point + 1
+                        else:
+                            break
+                    if qwirkle>0:
+                        point+=1
+                        qwirkle=0
+                return int(point)
+        else:
+            x1 = tiles[0][0] + 54
+            y1 = tiles[0][1] + 54
+            qwirkle = 0
+            ymax=0
+            ymin=0
+            xmax=0
+            xmin=0
+            for j in range(0, 7):
+                if self.tilecolor[x1, y1 + j] != 0:
+                    ymax=y1+j
                 else:
-                    if (qwirkle==5):
-                        point+=6
+                    break
+            for j in range(0, 7):
+                if self.tilecolor[x1, y1 - j] != 0:
+                    ymin=y1-j
+                else:
+                    break
+            for j in range(0, 7):
+                if self.tilecolor[x1+j, y1] != 0:
+                    xmax = x1 + j
+                else:
+                    break
+            for j in range(0, 7):
+                if self.tilecolor[x1-j, y1] != 0:
+                    xmin =x1 - j
+                else:
                     break
 
-        return point
+            point=ymax-ymin+xmax-xmin +1
+            if point == 6:
+                point += 6
+
+        return int(point)
+
+
+
+
+

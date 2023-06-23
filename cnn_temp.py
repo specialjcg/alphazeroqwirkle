@@ -6,19 +6,21 @@ from torch.nn import functional as F
 class ConvBlock(nn.Module):
     def __init__(self):
         super(ConvBlock, self).__init__()
-        self.conv1 = nn.Conv2d(26, 64, kernel_size=3, stride=1, padding=1)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.conv2 = nn.Conv2d(64, 12, kernel_size=6, stride=1, padding=2)
-        self.bn2 = nn.BatchNorm2d(12)
+        self.conv1 = nn.Conv2d(26, 10, kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm2d(10)
+        # self.conv2 = nn.Conv2d(64, 35, kernel_size=8, stride=1, padding=2)
+        # self.bn2 = nn.BatchNorm2d(35)
+
     def forward(self, s):
         s = s.view(-1, 26, 54, 54)  # batch_size x channels x board_x x board_y
         s = F.leaky_relu(self.bn1(self.conv1(s)))
-        s = F.leaky_relu(self.bn2(self.conv2(s)))
+
+        # s = F.leaky_relu(self.bn2(self.conv2(s)))
         return s
 
 
 class ResBlock(nn.Module):
-    def __init__(self, inplanes=12, planes=12, stride=1, downsample=None):
+    def __init__(self, inplanes=10, planes=10, stride=1, downsample=None):
         super(ResBlock, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
@@ -43,7 +45,7 @@ class ResBlock(nn.Module):
 
 class OutBlock(nn.Module):
     # shape=6*7*32
-    shape1 = 33708
+    shape1 = 29160
     # shape = 24156*25*25
     shape = 23436
 

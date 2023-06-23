@@ -122,7 +122,7 @@ if __name__ == '__main__':
     cnn.init_weights()
     # optimizer = torch.optim.SGD(cnn.parameters(),lr=0.1,momentum=0.9,weight_decay=5e-4)
     # optimizer = torch.optim.SGD(cnn.parameters(), lr=0.01, momentum=0.9)
-    optimizer = torch.optim.Adam(cnn.parameters(), lr=0.000000001)
+    optimizer = torch.optim.Adam(cnn.parameters(), lr=0.000001)
     for epoch in range(EPOCHS):
         print('EPOCH {}:'.format(epoch + 1))
 

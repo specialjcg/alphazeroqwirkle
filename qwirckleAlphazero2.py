@@ -678,7 +678,7 @@ lossreward = nn.MSELoss()
 loss = nn.BCEWithLogitsLoss()
 # optimizer = torch.optim.SGD(cnn.parameters(),lr=0.1,momentum=0.9,weight_decay=5e-4)
 # optimizer = torch.optim.SGD(cnn.parameters(), lr=0.01, momentum=0.9)
-optimizer = torch.optim.Adam(cnn.parameters(), lr=0.0001)
+optimizer = torch.optim.Adam(cnn.parameters(), lr=0.000001)
 reward = 0.0
 global gridnorme
 
